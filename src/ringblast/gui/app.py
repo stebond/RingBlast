@@ -202,8 +202,12 @@ class MainWindow(W.QMainWindow):
         act_manual = help_menu.addAction("User manual"); act_manual.setShortcut("F1")
         act_manual.triggered.connect(self.show_manual)
         help_menu.addSeparator()
+        act_upd = help_menu.addAction("Check for updates..."); act_upd.triggered.connect(lambda: self._updater.start(manual=True))
         act_about = help_menu.addAction("About RingBlast..."); act_about.triggered.connect(self.show_about)
         self._manual = None
+        from .updater import UpdateChecker
+        self._updater = UpdateChecker(self)
+        C.QTimer.singleShot(2500, lambda: self._updater.start(manual=False))   # silent check a moment after start-up
 
         # ---------------------------------------------------------- wiring
         for w in list(self.w.values())[:5] + [self.w["angle"], self.w["wd"], self.w["dtop"], self.w["arch"]]:

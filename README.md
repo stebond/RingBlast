@@ -43,3 +43,9 @@ Run `launcher\build_exe.bat` on a Windows computer (or the GitHub Actions workfl
 to obtain `dist\RingBlast\RingBlast.exe` and `dist\RingBlast-portable-<version>-windows.zip`. The folder can be copied
 anywhere (USB stick); settings, user database rows and project photos are kept in `RingBlast_data` next to the program.
 `RingBlast.exe --selftest` checks that the bundled data are found.
+
+## Updates
+
+RingBlast checks GitHub in the background (at most once a day, silently when offline) whether a newer release exists and, if so, asks whether to download it. Use *Help > Check for updates...* for an immediate check; the start-up check can be switched off in the *Settings* tab (or with the environment variable `RINGBLAST_NO_UPDATE_CHECK=1`).
+
+To publish a new version: raise `VERSION` in `src/ringblast/about.py` (and `version` in `pyproject.toml`), commit, then create and push a tag such as `v0.2.0`. The GitHub Actions workflow builds the portable Windows program and attaches it to the release; the program compares the tag with its own version.

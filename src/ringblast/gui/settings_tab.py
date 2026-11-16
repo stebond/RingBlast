@@ -85,6 +85,13 @@ class SettingsTab(W.QWidget):
         self.tips_box.setToolTip("Untick it when you know the program: the hints will no longer appear. Remembered on this computer.")
         self.tips_box.toggled.connect(tips.set_enabled)
         outer.addWidget(self.tips_box)
+        from .. import updates
+        self.upd_box = W.QCheckBox("Check for a new version of RingBlast at start-up (at most once a day, needs internet)")
+        self.upd_box.setChecked(updates.auto_check_enabled())
+        self.upd_box.setToolTip("When ticked the program asks GitHub, in the background, whether a newer release exists and "
+                                "offers to download it. Nothing is sent but the request itself. You can always use Help > Check for updates.")
+        self.upd_box.toggled.connect(lambda on: updates.save_settings(check_updates=bool(on)))
+        outer.addWidget(self.upd_box)
         outer.addWidget(W.QLabel("Changes apply immediately to all plots and are remembered on this computer."))
         grid = W.QGridLayout()
         for g, (title, items) in enumerate(GROUPS):

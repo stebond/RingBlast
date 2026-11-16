@@ -32,9 +32,8 @@ def enabled() -> bool:
 def set_enabled(on: bool) -> None:
     _state.update(enabled=bool(on), loaded=True)
     try:
-        f = _file()
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(json.dumps({"tooltips": bool(on)}), encoding="utf-8")
+        from .. import updates                      # merge into the shared settings file
+        updates.save_settings(tooltips=bool(on))
     except OSError:
         pass
 

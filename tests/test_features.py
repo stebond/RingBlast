@@ -535,8 +535,13 @@ def test_launch_with_splash(monkeypatch):
     app = W.QApplication.instance() or W.QApplication([])
     steps = []
     orig = launch.Splash.step
-    monkeypatch.setattr(launch.Splash, "step", lambda self, v, t: (steps.append((v, t)), orig(self, v, t))[1])
-    C.QTimer.singleShot(1500, app.quit)
+
+    def step(self, v, t):
+        steps.append((v, t))
+        orig(self, v, t)
+        if v == 1.0:                      # quit only once the event loop is about to start
+            C.QTimer.singleShot(800, app.quit)
+    monkeypatch.setattr(launch.Splash, "step", step)
     assert launch.main() == 0
     values = [v for v, _ in steps]
     assert values[0] < 0.1 and values[-1] == 1.0 and values == sorted(values)
@@ -615,3 +620,107 @@ def test_booster_drawn_in_pattern_and_dxf(tmp_path):
     assert plotstyle.get().booster_color not in {l.get_color() for l in ax0.lines}
     doc = ezdxf.readfile(export_dxf(tmp_path / "b.dxf", res, st, params=p))
     assert len(doc.modelspace().query('LINE[layer=="HOLES_BOOSTER"]')) == res.n_holes
+
+
+# ---------------------------------------------------------------- update check
+class _Resp:
+    def __init__(self, data):
+        import json as _j
+        self._b = _j.dumps(data).encode()
+
+    def read(self):
+        return self._b
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _fake_opener(routes):
+    import urllib.error
+
+    def opener(req, timeout=0):
+        url = req.full_url
+        for suffix, data in routes.items():
+            if url.endswith(suffix):
+                if data is None:
+                    raise urllib.error.HTTPError(url, 404, "nf", {}, None)
+                return _Resp(data)
+        raise AssertionError(url)
+    return opener
+
+
+def test_version_parsing_and_comparison():
+    from ringblast import updates as u
+    assert u.parse_version("v0.2.1") == (0, 2, 1, 1)
+    assert u.is_newer("0.2.0", "0.1.9") and u.is_newer("v1.0", "0.9.9")
+    assert not u.is_newer("0.1.0", "0.1.0") and not u.is_newer("0.1.0", "0.2.0")
+    assert not u.is_newer("0.2.0rc1", "0.2.0")           # a pre-release is older than the release
+    assert not u.is_newer("garbage", "0.1.0")
+
+
+def test_fetch_latest_release_tag_fallback_and_none():
+    from ringblast import updates as u
+    rel = {"tag_name": "v0.3.0", "html_url": "https://x/rel", "body": "notes", "published_at": "2026-12-01T10:00:00Z",
+           "assets": [{"name": "src.zip", "browser_download_url": "a"},
+                      {"name": "RingBlast-portable-0.3.0.zip", "browser_download_url": "https://x/portable.zip"}]}
+    i = u.fetch_latest(_fake_opener({"/releases/latest": rel}))
+    assert (i.version, i.asset_url, i.published) == ("0.3.0", "https://x/portable.zip", "2026-12-01")
+    tags = [{"name": "v0.1.0"}, {"name": "v0.2.5"}, {"name": "nightly"}]
+    i = u.fetch_latest(_fake_opener({"/releases/latest": None, "/tags": tags}))
+    assert i.version == "0.2.5" and i.asset_url == ""
+    assert u.fetch_latest(_fake_opener({"/releases/latest": None, "/tags": None})) is None
+
+
+def test_update_errors_skip_and_daily_limit(tmp_path, monkeypatch):
+    import urllib.error
+    from ringblast import db
+    from ringblast import updates as u
+    monkeypatch.setattr(db, "USER_DIR", tmp_path)
+    monkeypatch.delenv("RINGBLAST_NO_UPDATE_CHECK", raising=False)
+    rel = {"tag_name": "v9.0.0", "html_url": "https://x/rel", "assets": []}
+    ok = _fake_opener({"/releases/latest": rel})
+    assert u.due_for_auto_check()
+    assert u.check(opener=ok).version == "9.0.0"
+    assert not u.due_for_auto_check()                     # checked today: no second automatic check
+    u.save_settings(skip_version="9.0.0")
+    assert u.check(manual=False, opener=ok) is None       # skipped version: silent
+    assert u.check(manual=True, opener=ok).version == "9.0.0"
+    assert u.check(opener=_fake_opener({"/releases/latest": {"tag_name": "v0.0.1", "assets": []}})) is None
+
+    def offline(req, timeout=0):
+        raise urllib.error.URLError("no network")
+    import pytest
+    with pytest.raises(u.UpdateError):
+        u.check(opener=offline)
+    u.save_settings(check_updates=False)
+    assert not u.due_for_auto_check()
+    from ringblast.gui import tips
+    tips.set_enabled(False)                               # the tooltip option must not erase the others
+    assert u.load_settings()["check_updates"] is False and u.load_settings()["tooltips"] is False
+
+
+def test_update_dialog_flow(monkeypatch, tmp_path):
+    from PySide6 import QtWidgets as W
+    from ringblast import db, updates as u
+    monkeypatch.setattr(db, "USER_DIR", tmp_path)
+    monkeypatch.setenv("RINGBLAST_NO_UPDATE_CHECK", "1")
+    from ringblast.gui import app
+    qapp = W.QApplication.instance() or W.QApplication([])
+    win = app.MainWindow()
+    asked, shown = [], []
+    monkeypatch.setattr(win._updater, "ask", lambda info: asked.append(info.version))
+    monkeypatch.setattr(W.QMessageBox, "information", lambda *a, **k: shown.append(a[2]))
+    win._updater._done(u.UpdateInfo("9.9.9", "v9.9.9", "https://x"), "", False)
+    assert asked == ["9.9.9"]
+    win._updater._done(None, "", False)                   # automatic + up to date: silent
+    assert not shown
+    win._updater._done(None, "", True)                    # manual + up to date: says so
+    assert "latest version" in shown[-1]
+    win._updater._done(None, "GitHub cannot be reached", True)
+    assert "cannot be reached" in shown[-1]
+    win._updater.start(manual=False)                      # disabled by the environment: nothing starts
+    assert win._updater._worker is None
+    assert win.menuBar().findChildren(W.QMenu)[-1].actions()[2].text().startswith("Check for updates")
