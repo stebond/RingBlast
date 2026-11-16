@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>RingBlast - user manual</title>
+<style>
+ body { font-family: "Segoe UI", Arial, sans-serif; line-height: 1.45; max-width: 860px; margin: 18px auto; padding: 0 14px; color:#1d2733; }
+ h1 { color:#16304f; border-bottom:2px solid #f0a020; padding-bottom:4px; }
+ h2 { color:#16304f; margin-top:28px; border-bottom:1px solid #c9d2de; }
+ h3 { color:#2b4a70; }
+ code, kbd { background:#eef2f7; padding:1px 4px; border-radius:3px; font-family: Consolas, monospace; }
+ table { border-collapse: collapse; margin:8px 0; } th, td { border:1px solid #c9d2de; padding:4px 8px; text-align:left; vertical-align:top; }
+ th { background:#eef2f7; }
+ .note { background:#fff6e0; border-left:4px solid #f0a020; padding:6px 10px; margin:10px 0; }
+ .toc li { margin:2px 0; }
+</style></head><body>
+
+<h1>RingBlast &ndash; user manual</h1>
+<p>RingBlast designs ring (fan) blast patterns for sublevel stoping: for every drift level it builds the fan of holes,
+computes the charging, predicts the fragmentation with the Kuz-Ram model and lets you compare it with the size
+distribution measured on photographs of the muck pile.</p>
+
+<ul class="toc">
+ <li><a href="#start">1. Quick start</a></li>
+ <li><a href="#layout">2. Stope layout</a></li>
+ <li><a href="#design">3. Blast design</a></li>
+ <li><a href="#tables">4. Rock properties and Explosives</a></li>
+ <li><a href="#photos">5. Muck-pile photos</a></li>
+ <li><a href="#settings">6. Settings</a></li>
+ <li><a href="#projects">7. Projects</a></li>
+ <li><a href="#export">8. Exported files</a></li>
+ <li><a href="#method">9. What is calculated, assumptions and limits</a></li>
+ <li><a href="#trouble">10. Troubleshooting</a></li>
+ <li><a href="#cite">11. How to cite</a></li>
+</ul>
+
+<h2 id="start">1. Quick start</h2>
+<p>Rest the mouse on any parameter or button to read what it does (this can be switched off in <i>Settings</i>). This manual is always available from <b>Help &rarr; User manual</b> (F1).</p>
+<ol>
+ <li><b>Stope layout</b> tab: enter the stope width and height, the number of sublevels, the drift size and where the drifts are
+     (centre, left or right). The drawing updates as you type.</li>
+ <li><b>Blast design</b> tab: choose the rock, the explosive and the burden method, check the parameters and press
+     <b>Run design</b>. The pattern, the fragmentation curves and the totals appear on the right.</li>
+ <li>Press <b>Export DXF / CSV / JSON / HTML...</b> to write the files you need (CAD drawing, hole table, report).</li>
+ <li>Use <b>Save project...</b> (top right) to keep everything in one file.</li>
+</ol>
+<div class="note">Nothing is calculated until you press <b>Run design</b>; the layout is only a drawing. If you change the layout
+after a run, the old results are cleared so that they are never confused with the new geometry.</div>
+
+<h2 id="layout">2. Stope layout</h2>
+<p><img src="../figures/screenshots/01_stope_layout.png" width="760"></p>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Stope width L / height H</td><td>Size of the stope section (m).</td></tr>
+<tr><td>Sublevels (above the base)</td><td>Number of sublevel drifts. Each one drills a rectangular block with its own ring.</td></tr>
+<tr><td>Include base</td><td>Adds the base drift, at the bottom centre of the stope, which fires the trapezoidal block above the hopper.</td></tr>
+<tr><td>Drifts per sublevel</td><td>1 or 2. With 2, the sublevel has two drifts placed symmetrically about the axis of the stope; each drift fires one half of the block (the fans meet on the axis) and has its own ring, charging and results (<i>Sublevel 1 left</i>, <i>Sublevel 1 right</i>...). The base drift stays single, at the bottom centre.</td></tr>
+<tr><td>Two drifts: positions</td><td><b>at the walls</b>: each drift against its wall (or at the side-drift distance); <b>centre of each half</b>: each drift at a quarter of the width from the axis, i.e. in the middle of its half of the stope. The two drifts must fit side by side.</td></tr>
+<tr><td>One drift: horizontal position</td><td>Centre, left or right. Side drifts are placed flush with the wall unless you enter a distance.</td></tr>
+<tr><td>Side drift: distance from wall</td><td>Gap between a side drift and the wall (m); 0 = flush with the wall.</td></tr>
+<tr><td>Sublevel drift position (vertical)</td><td><b>top</b>: the drift roof is at the top of its sublevel block (minus the distance below). <b>center</b>: the drift is centred in the sublevel. When the drift is below the top of the block, the fan also drills the rock above it.</td></tr>
+<tr><td>Drift roof: distance from block top</td><td>Distance (m) between the top of the sublevel block and the drift roof; 0 = at the top. Used with position <i>top</i>; together with <i>center</i> it lets you place the drift at any height (any value up to the sublevel height minus the drift height).</td></tr>
+<tr><td>Roof arch rise</td><td>0 = flat roof (rectangle). A value &gt; 0 makes the roof of the stope a circular arc: it is the distance between the top edge of the roof rectangle and the crown of the arc (maximum half the stope width, a semicircle). Only the top sublevel block is arched; its holes also cover the arch.</td></tr>
+<tr><td>Drift width / height</td><td>Size of the drift section (m).</td></tr>
+<tr><td>Hopper wall angle</td><td>Inclination of the sloping sides of the base trapezoid (degrees).</td></tr>
+</table>
+<p>The message under the form tells you if the geometry is not valid (for example a drift wider than the stope).</p>
+
+<h2 id="design">3. Blast design</h2>
+<p><img src="../figures/screenshots/03_blast_design_fragmentation.png" width="760"></p>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Rock, Explosive</td><td>Taken from the two property tables (tabs 3 and 4); you can edit or extend them.</td></tr>
+<tr><td>Burden method</td><td>Langefors-Kihlstrom, powder factor (Hustrulid), energy / new surface, Konya (1972, 1983), Ash, Andersen. A method that needs a rock or explosive property that is missing is reported, not guessed.</td></tr>
+<tr><td>Hole diameter</td><td>mm.</td></tr>
+<tr><td>S/B</td><td>Ratio of the spacing to the burden. The effective spacing of the ring is adjusted so that the toes close exactly on the corners.</td></tr>
+<tr><td>Fixation f, Langefors c</td><td>Parameters of the Langefors-Kihlstrom formula.</td></tr>
+<tr><td>Rock factor A</td><td>Kuz-Ram rock factor (about 8-12 for medium rock).</td></tr>
+<tr><td>Zone thickness R</td><td>Thickness of the annular zones around the fan centre used to predict fragmentation by distance from the drift.</td></tr>
+<tr><td>Manual burden</td><td>If larger than 0, overrides the method and uses this burden (m).</td></tr>
+<tr><td>Show level</td><td>Plots all levels together or one level at a time (with two drifts, each drift is a level).</td></tr>
+<tr><td>Booster (bottom charge)</td><td>Optional second explosive placed at the toe of every charged hole (default: none, a single explosive). Chosen from the Explosives table. In the pattern plot the booster is drawn thicker and in its own colour (blue by default, changeable in the Settings tab).</td></tr>
+<tr><td>Booster length BCL (m)</td><td>Length of the booster at the toe of each hole; the rest of the charged length is the column charge (CCL). With a booster: the uniformity index uses the real BCL and CCL, n = (2.2 - 14 B/D) &radic;((1+S/B)/2) (1 - W/B) (|BCL-CCL|/L + 0.1)<sup>0.1</sup> L/H (Cunningham, 1983; L = BCL + CCL, H = hole length); the RWS in Kuznetsov's equation is the mean of booster and column RWS weighted on the length each occupies; the charge mass is the sum of the two masses. Without a booster BCL = CCL is assumed. For ring blasting W = 0 is sufficient (set drilling deviation to 0).</td></tr>
+<tr><td>Logarithmic size axis</td><td>Ticked by default: the size axis of the fragmentation plot is logarithmic. Untick to return to a linear scale. The same option exists in the Muck-pile photos tab. It changes only the drawing, not the results.</td></tr>
+<tr><td>Show fragmentation zones</td><td>Tick to draw the circles that bound the zones used for the fragmentation calculation; untick for a cleaner pattern. It changes only the drawing, not the results.</td></tr>
+</table>
+<p><b>Results.</b> The <i>Pattern</i> tab shows the holes (stemming and charged part), the <i>Fragmentation</i> tab the Kuz-Ram curve of each level and of the whole stope.
+The text below lists, for each level, the holes, drilled and charged length, explosive mass, powder factor and mean size, and the totals.
+Holes shorter than 1 m are dropped; charging follows the rules: stemming 20 hole diameters, corner holes always fully charged, neighbouring holes thinned so that charges stay at least half a spacing apart.</p>
+
+<h2 id="tables">4. Rock properties and Explosives</h2>
+<p><img src="../figures/screenshots/04_rock_properties.png" width="760"></p>
+<p>The two tables are editable. Click a cell to change a value; <b>Add rock / explosive</b> adds a row, <b>Add parameter...</b> adds your own column,
+<b>Import CSV...</b> / <b>Export CSV...</b> exchange tables with other programs, <b>Delete / restore selected</b> removes a row you added or
+restores the original values of a built-in row, and <b>Reset to original values</b> brings back the shipped database.</p>
+<ul>
+ <li>Only your <i>new or modified</i> rows are stored in your user folder (<code>~/.ringblast</code>); the built-in data are never overwritten.</li>
+ <li>The built-in explosive values come from the legacy macro: check them against the manufacturer's datasheet before using them in a real design. Column <code>verified</code> marks the checked rows.</li>
+ <li>When you save a project, the rows of the rock and explosive that you used are stored in it, so the project opens identically on another computer.</li>
+</ul>
+
+<h2 id="photos">5. Muck-pile photos</h2>
+<p><img src="../figures/screenshots/07_photos_fragments.png" width="760"></p>
+<h3>Workflow</h3>
+<ol>
+ <li><b>Add photos...</b> (jpg, png, tif, bmp). The date is read from the photo if it has one.</li>
+ <li>In the <i>Photo</i> panel write the date, the location (level, ring, position in the pile) and notes.</li>
+ <li><b>Set scale</b>: click the two ends of an object of known length in the photo (ruler, helmet, drill rod, a scale bar placed on the pile), then type its length in cm. You can also type the px/cm value.
+     The scale is valid for the part of the pile at the same distance from the camera: photograph with the scale on the surface you want to measure, as perpendicular as possible.</li>
+ <li><b>Analyse selected</b> / <b>Analyse all</b>. The fragments found are outlined in yellow; the plot shows the volume-weighted size distribution of each photo, of all photos together and the Kuz-Ram curve of the design (after <i>Run design</i>).</li>
+ <li><b>Export results...</b> writes a summary CSV, the outlined images and the pooled distribution.</li>
+</ol>
+
+<h3>Tuning the segmentation</h3>
+<p>Open the <i>Segmentation</i> panel (left, below the photo list). Use the <b>View</b> menu below the image to see the stages:
+<i>Original photo</i>, <i>Pre-processed (grey)</i>, <i>Boundaries</i> (red = pixels taken as gaps between fragments) and <i>Fragments</i>.
+Tick <b>Live update</b> to re-run the analysis automatically half a second after you stop changing a value.</p>
+<p><img src="../figures/screenshots/08_photos_segmentation_mask.png" width="760"></p>
+<table>
+<tr><th>Symptom</th><th>What to try</th></tr>
+<tr><td>Large blocks are cut into many pieces</td><td>Lower <b>Sensitivity</b>; raise <b>Smoothing</b> (rock texture is read as fractures); raise <b>Threshold shift</b>; use <b>Close</b>.</td></tr>
+<tr><td>Touching blocks are merged into one</td><td>Raise <b>Sensitivity</b>; lower <b>Threshold shift</b>; use <b>Erode</b> (1-2).</td></tr>
+<tr><td>Dark, flat photo or hazy air</td><td>Raise <b>Contrast (CLAHE)</b>; adjust <b>Gamma</b> (&lt;1 brightens shadows).</td></tr>
+<tr><td>Strong shadows or uneven light</td><td>Keep <b>Threshold mode = adaptive</b> and enlarge <b>Adaptive window</b>.</td></tr>
+<tr><td>Even light, clear dark gaps</td><td>Try <b>otsu</b> or <b>fixed</b> with a grey level read from the <i>Pre-processed</i> view.</td></tr>
+<tr><td>Fragments darker than the gaps (wet rock on light fines)</td><td>Tick <b>Fragments are darker than the gaps</b>.</td></tr>
+<tr><td>Tiny specks counted as fragments</td><td>Raise <b>Smallest fragment</b> or <b>Open</b>.</td></tr>
+<tr><td>Sky, wall or ground counted as a fragment</td><td>Lower <b>Max fragment / image</b>; crop the photo before loading it.</td></tr>
+</table>
+<p><b>Reset segmentation</b> restores the default values of the current photo; <b>Copy to all photos</b> applies the current settings to every photo (analyse again afterwards).
+Every photo keeps its own settings, and they are saved in the project together with the values used for the stored results; if you change a value after the analysis the summary tells you to analyse again.</p>
+<div class="note"><b>Interpret with care.</b> Photo analysis measures only the visible surface of the pile, cannot resolve fragments below the smallest size, and is biased by shadows, overlap and perspective.
+Always check the result on a few photos by eye (<i>Fragments</i> view), use several photos per muck pile, and validate against sieving before using the numbers quantitatively.</div>
+
+<h2 id="settings">6. Settings</h2>
+<p>Colours, background, fonts and sizes of every plot. Changes apply immediately and are remembered on this computer. Presets: Default, Dark, Publication. <b>Reset to defaults</b> restores the original style.</p>
+<p><b>Help tooltips.</b> Every parameter and button has a tooltip that explains it. When you know the program, untick <b>Show help tooltips</b> at the top of this tab to stop them appearing; the choice is remembered on this computer.</p>
+
+<h2 id="projects">7. Projects</h2>
+<p>The bar at the top of the window holds the <b>project name</b> and <b>notes</b> and three buttons:</p>
+<ul>
+ <li><b>Save project...</b> writes one file (<code>*.ringblast</code>) containing the inputs, the rock and explosive rows used, the photo records with all their settings and measurements <b>and the photos themselves</b>. Copy that single file to another computer to continue the work there.
+     The file grows with the photos (a few MB each). If an original photo can no longer be found, the project is still saved and a warning names the missing file.</li>
+ <li><b>Open project...</b> restores everything. Photos are extracted to <code>~/.ringblast/project_images</code>. Projects saved with earlier versions (plain <code>.json</code>) still open.</li>
+ <li><b>Reset</b> returns to the default inputs and clears name, notes and photos. The two data tables and the plot settings have their own reset buttons.</li>
+</ul>
+
+<h2 id="export">8. Exported files</h2>
+<table>
+<tr><th>File</th><th>Content</th></tr>
+<tr><td><code>*.dxf</code></td><td>Drawing for AutoCAD (stope, drifts, holes with charged and stemming parts, zones, labels, one layer each).</td></tr>
+<tr><td><code>*.holes.csv</code></td><td>Table of the holes: level, position, angle, length, charged length, toe coordinates.</td></tr>
+<tr><td><code>*.json</code></td><td>All inputs and results in machine-readable form.</td></tr>
+<tr><td><code>*.html</code></td><td>Printable report with the figures and tables.</td></tr>
+</table>
+<p>Files go to the folder you choose (default <code>output</code> inside the program folder). The same calculation is available from the command line: <code>ringblast run case.json</code>.</p>
+
+<h2 id="method">9. What is calculated, assumptions and limits</h2>
+<ul>
+ <li><b>Geometry.</b> The holes of each ring fan out from the centre of the drift; the toes lie on the contour of the block, spaced by perpendicular offset marching so that the effective spacing does not exceed S and the contour closes exactly on the corner holes.</li>
+ <li><b>Fragmentation.</b> Kuz-Ram: mean size X50 = A K<sup>-0.8</sup> Q<sup>1/6</sup> (115/RWS)<sup>19/30</sup>, uniformity index n from Cunningham, Rosin-Rammler distribution; computed in annular zones around the fan centre and combined for each level and for the stope.</li>
+ <li><b>Photo analysis.</b> Grey image, local contrast, threshold for the gaps, distance-transform watershed; equivalent diameter of each region; cumulative curve weighted by volume (d<sup>3</sup>); Rosin-Rammler fit on the 10-90 % passing range.</li>
+ <li><b>Limits.</b> 2-D pattern per level; same burden and spacing for all levels; Kuz-Ram is an empirical model that needs calibration with measured fragmentation; the built-in database values must be verified; photo results are indicative until validated.</li>
+</ul>
+
+<h2 id="trouble">10. Troubleshooting</h2>
+<table>
+<tr><th>Problem</th><th>Solution</th></tr>
+<tr><td>The program does not start or a component is missing</td><td>Start it again from the shortcut with an internet connection: missing components are installed automatically.</td></tr>
+<tr><td>A burden method says a property is missing</td><td>Fill the property (e.g. density, Vp, fragmentation energy) in the rock table, or choose another method.</td></tr>
+<tr><td>"Set the image scale first"</td><td>Set the scale of that photo (section 5) before analysing.</td></tr>
+<tr><td>No fragments, or very few, are found</td><td>Check the scale, lower <b>Smallest fragment</b>, look at the <i>Boundaries</i> view and adjust the threshold.</td></tr>
+<tr><td>The Desktop icon looks old</td><td>Windows keeps an icon cache: delete the old shortcut and run <i>Create Desktop Shortcut.bat</i> again.</td></tr>
+</table>
+
+<h2 id="cite">11. How to cite</h2>
+<p>See <b>Help &rarr; About RingBlast</b> for the version number and the reference text to cite. Report problems and suggestions to the authors at the address shown there, including the program information that the About window can copy.</p>
+</body></html>

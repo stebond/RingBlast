@@ -1,0 +1,21 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Build products and downloads
+build/
+dist/
+*.zip
+_to_delete/
+
+# Personal tests and results (the folders stay, their content is not committed)
+output/*
+!output/.gitkeep
+projects/*
+!projects/.gitkeep
+
+# Paper (manuscript, revision notes and its figures)
+paper/

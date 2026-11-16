@@ -1,0 +1,45 @@
+# RingBlast
+
+Open-source design tool for ring (fan) blasting in sublevel stoping: burden/spacing from several
+published methods, ring geometry, charging with recursive decharging, Kuz-Ram fragmentation by
+zone, DXF/CSV/JSON/HTML export. Successor of the Excel/VBA macro `RingBlast.xlsm`.
+
+## Install
+    pip install -e .[gui,test]
+## Use
+    ringblast methods | rocks | explosives
+    ringblast compare examples/case_macro_input.json
+    ringblast run examples/case_macro_input.json --out out/case1     # DXF, CSV, JSON, HTML
+    ringblast sensitivity examples/case_macro_input.json --min 2 --max 4 --step 0.25
+    ringblast-gui
+    pytest
+User databases (rocks, explosives) are stored in `~/.ringblast/*.csv` and override/extend the built-in ones.
+Missing rock/explosive properties are never guessed: a method that needs them reports `MissingInput`.
+
+Status: 0.1 (alpha). Not validated against field data; the explosive database must be checked against
+manufacturer datasheets before any engineering use (see docs/DESIGN.md).
+
+## Windows, non-programmer users
+Double-click `RingBlast.bat` (first run: creates `.venv` and installs the dependencies); see `README.txt`.
+`launcher/build_exe.bat` builds a stand-alone executable with PyInstaller (run it on Windows).
+
+## GUI tabs
+Blast design · Rock properties and Explosives (editable tables, stored per user in `~/.ringblast`, restorable) ·
+Muck-pile photos (scale calibration, watershed fragment detection, volume-weighted size distribution, Rosin-Rammler fit,
+comparison with the Kuz-Ram design) · Settings (plot colours, fonts, sizes). Projects (`*.ringblast`, one zip file) store the
+inputs, the database rows used, the photos themselves and their measurements, so a project can be moved to another computer.
+
+## Levels
+The design is computed for every drift level: `n_sublevels` rectangular sublevels plus (optionally) the base
+drift, whose block is the trapezoid above the hopper. Each drift is central or at the side
+(`drift_position`, or `drift_positions` per level, top to base).
+
+## Layout
+`src/` code · `database/` rocks and explosives · `examples/` numerical cases and results · `figures/` · `docs/` · `tests/` · `tools/` · `launcher/`
+
+## Portable Windows program (no Python needed)
+
+Run `launcher\build_exe.bat` on a Windows computer (or the GitHub Actions workflow *Build portable Windows program*)
+to obtain `dist\RingBlast\RingBlast.exe` and `dist\RingBlast-portable-<version>-windows.zip`. The folder can be copied
+anywhere (USB stick); settings, user database rows and project photos are kept in `RingBlast_data` next to the program.
+`RingBlast.exe --selftest` checks that the bundled data are found.

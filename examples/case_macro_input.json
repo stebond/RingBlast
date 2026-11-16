@@ -1,0 +1,7 @@
+{
+  "rock": "Limestone",
+  "explosive": "anfo77",
+  "stope": {"width": 25, "height": 80, "n_sublevels": 2, "drift_width": 5, "drift_height": 5, "wall_angle_deg": 55},
+  "params": {"hole_diameter_mm": 80, "burden_method": "langefors_kihlstrom", "sb_ratio": 1.25,
+             "fixation": 0.65, "c_langefors": 0.8, "rock_factor_A": 10}
+}

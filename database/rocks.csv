@@ -1,0 +1,66 @@
+name,name_it,density_t_m3,ucs_mpa,shear_mpa,tensile_mpa,vp_ms,frag_energy_kj_m2,c_langefors,rock_factor_A,youngs_gpa,source,notes
+Anhydrite,,,120,69.9909,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Marl,marne,1.375,3.45,2.34672,,2500,1.1,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.55 t/m3 differs
+Coal,,1.45,21,16.657,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Claystone,,2.5,6,3.44868,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Conglomerate,,2.2,85,59.7676,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Chalk,,1.86,10.5,6.21218,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Dolomite,dolomie,2.8,180,123.052,,4000,1.54,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.65 t/m3 differs
+Limestone,calcari,2.55,115,81.258,4.9033,4000,1.47,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.6 t/m3 differs
+Mudstone,,2.5,95,47.3024,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Shale,,2.55,104,53.3406,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Sandstone,arenarie,2.45,117.5,74.6566,0.3923,2750,1.18,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.25 t/m3 differs
+Siltstone,,2.5,95,61.2443,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Tuff,tufi,1.4,200,162.28,,2100,1.1,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Andesite,,2.95,187.5,122.518,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Anorthosite,,,125,82.8479,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Basalt,basalti,2.9,227.5,205.542,0.9807,5400,1.65,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Diabase (dolerite),diabasi,3.1,273,187.506,,5000,1.92,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Diorite,,2.95,145,73.4915,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Gabbro,gabbri,2.95,237.5,144.779,,4200,1.51,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.6 t/m3 differs
+Granite,graniti,2.7,162.5,247.386,0.6865,5000,1.68,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,source shear strength > UCS: check data
+Graonodiorite,,,122.5,167.374,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Monzonite,,,157.5,101.042,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Nepheline Syenite,,,162.5,37.0716,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Norite,,,308,427.324,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Pegmatite,,,50.5,73.1936,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Rhyolite,,2.6,85,49.5769,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Syenite,sienite,2.6,152.5,30.8027,,4200,1.53,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Ultra basic rock,,,220,165.366,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Amphibolite,,2.7,162.5,101.741,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Amphibolitic gneiss,gneiss a,3,162.5,83.9081,0.4903,4500,2.84,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Augen gneiss,,,162.5,84.6081,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Garnet mica schist,,,73.5,46.2779,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Granite gneiss,gneiss g,2.7,117.5,60.6379,0.4903,5000,1.81,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,
+Gneiss,,2.55,132.5,68.9526,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Gneiss granite,,,102.5,67.7296,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Greenschist,,,75,47.2152,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Greywacke,,,122.5,117.338,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Marble,,2.65,145,158.758,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Mica gneiss,,,77.5,40.0885,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Mica quartzite,,,85,82.0797,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Mica schist,,2.6,95,59.7126,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Phyllite,,2.74,50.5,27.8246,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Quartz sandstone,,,122.5,94.4915,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Quartzite,quarziti,2.7,160,154.666,0.9807,4500,1.63,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.65 t/m3 differs
+Quartzitic phyllite,,,100,54.0816,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Serpentinite,serpent.,3,132.5,92.1181,,4200,1.35,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.65 t/m3 differs
+Slate,,2.75,30,15.1487,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Talc schist,,,67.5,42.5287,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Rhyolite (alt),,,140,50.3791,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Phonolite,,2.6,150,53.9206,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Syenite (alt),,,150,53.9206,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Tephrite,,,90,32.6716,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Trachyte,,,150,53.9206,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Travertine,travert.,2.6,80,51.8333,,2800,1.16,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.1 t/m3 differs
+Evaporite,,2.85,125,240.275,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Rock salt (Halite),salgemma,2.163,12,22.6605,,3500,1.1,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.2 t/m3 differs; source shear strength > UCS: check data
+Gypsum,gessi,2.4,23.5,43.7405,,2500,1.1,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,legacy macro density 2.3 t/m3 differs; source shear strength > UCS: check data
+Anhydrite (alt),,,100,186.663,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Flint,,3,450,260.508,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Pozzolana,,,5,3.67864,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Monzogranite,,,175,241.585,,,,0.4,,,rock_properties_for_RingBlast.xlsx,source shear strength > UCS: check data
+Hornfels,,2.8,5.5,2.45885,,,,0.4,,,rock_properties_for_RingBlast.xlsx,
+Porphyry,porfidi,2.8,160,222.924,,5200,1.61,0.4,,,rock_properties_for_RingBlast.xlsx + RingBlast.xlsm RockData,source shear strength > UCS: check data
+Peridotite,peridot.,3.2,,,,5000,1.93,0.4,,,RingBlast.xlsm RockData,legacy macro only
+Calc-schist,calcesc.,2.6,,,0.4903,3100,1.44,0.4,,,RingBlast.xlsm RockData,legacy macro only

@@ -1,0 +1,11 @@
+name,ucs_mpa,shear_mpa,density_t_m3
+Very soft clay,0.0175,0.0280801,2
+Soft clay,0.0375,0.117354,2
+Firm clay,0.075,0.289366,2
+Stiff clay,0.3,0.679533,2
+Hard clay,0.6,1.27978,2
+Silt,0.00055,0.100376,2
+Gravel,0.6,0.417555,2.05
+Dense sand,0.00055,0.00108501,2.05
+Undense sand,0.00055,0.000923419,2.05
+Peat,0.0008,0.000682245,0.8

@@ -1,0 +1,15 @@
+name,density_kg_dm3,energy_mj_kg,vod_ms,rws_anfo,det_pressure_gpa,source,notes
+anfo77,1.1,3.11,2600,100,2.3,RingBlast.xlsm ExplData,"legacy: strength vs NGL 70.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+gelA6,1.45,4.61,6500,121.4,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 85.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+gelB6,1.45,4.32,5500,117.1,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 82.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+sigma605,1.3,4.09,5000,115.7,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 81.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+sigma600,1.3,3.63,5300,114.3,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 80.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+brixiaA,1.2,3.7,3700,107.1,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 75.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+brixiaB,1.2,3.72,3900,112.9,,RingBlast.xlsm ExplData,"legacy: strength vs NGL 79.0%; rws_anfo derived (anfo77=100), verify against datasheet"
+pentolite5050,1.65,5.0,7400,135.1,22.6,Dobratz & Crawford 1985 (LLNL Explosives Handbook); PETN/TNT energies from public data,"booster: generic cast pentolite 50/50 (PETN/TNT). Density and VOD from the handbook; energy = mixing-rule estimate (PETN 5.81, TNT 4.18 MJ/kg); rws_anfo = 100*E/3.7 MJ/kg (ANFO basis of Dyno Nobel data sheets); Pdet = rho*D^2/4. Verify against the supplier datasheet"
+pentexDGH,1.7,5.0,7200,135.1,22.0,Orica Pentex D/G/H/PowerPlus data sheet (nominal values),"booster: Orica Pentex cast booster (PETN-based composition cast in plastic shell). Density, VOD and detonation pressure from Orica; energy not published: pentolite-class estimate (see pentolite5050); rws_anfo = 100*E/3.7. Verify"
+pentexBC,1.65,5.0,7200,135.1,21.4,"Pentex BC Cast Boosters technical data sheet (Orica/Brandywine, USA & Canada)",booster: Pentex BC; VOD > 7200 m/s and Pdet > 214 kbar are minimum values; energy estimated as pentolite5050; rws_anfo = 100*E/3.7. Verify
+pentexCD,1.6,5.0,7500,135.1,25.0,"Pentex CD Cast Boosters technical data sheet (Orica/Brandywine, USA & Canada)",booster: Pentex CD (cord & detonator); Pdet 250 kbar; energy estimated as pentolite5050; rws_anfo = 100*E/3.7. Verify
+pentexSB,1.6,5.0,7800,135.1,24.5,"Pentex SB small booster technical data sheet (Orica/Brandywine, USA & Canada)","booster: Pentex SB (10-20 g, small-diameter holes); Pdet 245 kbar; energy estimated as pentolite5050; rws_anfo = 100*E/3.7. Verify"
+trojanTwinplex,1.6,5.0,7500,135.1,22.5,Dyno Nobel / Sasol Trojan Twinplex product description,booster: Dyno Nobel Trojan cast booster (pentolite); Pdet 225 kbar = 2.5*rho*D^2; energy estimated as pentolite5050; rws_anfo = 100*E/3.7. Verify
+dynomaxPro,1.45,4.41,5275,120.0,10.1,Dyno Nobel DYNOMAX PRO technical data sheet,"booster / bottom load: cartridged emulsion; energy 1055 cal/g (PRODET, calculated); RWS 1.20 vs ANFO (0.82 g/cc); VOD and Pdet unconfined at 50 mm; density 1.40 below 50 mm packages"
