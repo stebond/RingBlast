@@ -78,9 +78,9 @@ def main(argv=None) -> int:
     export_dxf(out.with_suffix(".dxf"), res, stope, params=params)
     export_hole_csv(out.with_suffix(".holes.csv"), res, stope, params)
     export_json(out.with_suffix(".json"), res, stope, rock, ex, params)
-    export_report_html(out.with_suffix(".html"), res, stope, rock, ex, params)
+    export_report_html(out.with_suffix(".html"), res, stope, rock, ex, params, project=out.name)
     try:
-        export_report_docx(out.with_suffix(".docx"), res, stope, rock, ex, params)
+        export_report_docx(out.with_suffix(".docx"), res, stope, rock, ex, params, project=out.name)
     except ImportError:
         pass                                              # python-docx not installed (pip install python-docx)
     print(f"B={res.burden_m:.2f} m  S={res.spacing_m:.2f} m  holes={res.n_holes}  "

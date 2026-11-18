@@ -1,6 +1,6 @@
 """Program identity shown in the About dialog, the manual and the reports (single place to edit)."""
 NAME = "RingBlast"
-VERSION = "0.1.9"
+VERSION = "0.1.10"
 YEAR = "2026"
 DESCRIPTION = "Design of ring (fan) blast patterns for sublevel stoping: geometry, charging, Kuz-Ram fragmentation and photo-based muck-pile analysis."
 AUTHORS = ["Stefano Bonduà", "F. Tinti", "Mohamed Elkarmoty"]

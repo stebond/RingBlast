@@ -205,6 +205,8 @@ class ImagesTab(W.QWidget):
     def __init__(self, design_provider=lambda: None):
         super().__init__()
         self.design_provider = design_provider
+        self.project_name = lambda: ""                 # set by the main window
+        self.ask_project_name = None                   # set by the main window: asks for a name if missing
         self.records: list[ImageRecord] = []
         self.results: dict[str, ia.FragmentResult] = {}
         self._loading = False
@@ -748,6 +750,9 @@ class ImagesTab(W.QWidget):
         if not any(r.path in self.results for r in self.records):
             W.QMessageBox.information(self, "Report", "Analyse the photos first (they need a scale).")
             return
+        project = self.ask_project_name("write the report") if self.ask_project_name else self.project_name()
+        if not project:
+            return                                        # no project name: nothing is written
         f, flt = W.QFileDialog.getSaveFileName(self, "Photo analysis report", str(Path.cwd() / "photo_report.html"),
                                                "HTML report (*.html);;PDF report (*.pdf);;Word report (*.docx)")
         if f:
@@ -756,7 +761,7 @@ class ImagesTab(W.QWidget):
             elif "pdf" in flt.lower() and not f.lower().endswith(".pdf"):
                 f += ".pdf"
             try:
-                self.write_report(f)
+                self.write_report(f, project)
             except ImportError as e:
                 W.QMessageBox.warning(self, "Report", f"The Word report needs the python-docx package ({e}).\n\n"
                                       "Install it with:  pip install python-docx\n"
@@ -767,8 +772,10 @@ class ImagesTab(W.QWidget):
                 return
             W.QMessageBox.information(self, "Report", f"Report saved:\n{f}")
 
-    def write_report(self, path) -> Path:
-        """HTML (self-contained), PDF or Word, by the extension of path."""
+    def write_report(self, path, project=None) -> Path:
+        """HTML (self-contained), PDF or Word, by the extension of path; the project name, program version
+        and date are printed under the title."""
+        project = self.project_name() if project is None else project
         from .. import photoreport as pr
         path = Path(path)
         predicted = None
@@ -779,9 +786,10 @@ class ImagesTab(W.QWidget):
             if curve is not None:
                 predicted = (x, curve)
         if path.suffix.lower() == ".docx":
-            return pr.write_docx(path, self.records, self.results, self._image, predicted, self.log_x.isChecked())
+            return pr.write_docx(path, self.records, self.results, self._image, predicted, self.log_x.isChecked(),
+                                project=project)
         body, imgs = pr.build(self.records, self.results, self._image, predicted, self.log_x.isChecked(),
-                              img_w=640 if path.suffix.lower() == ".pdf" else 760)
+                              img_w=640 if path.suffix.lower() == ".pdf" else 760, project=project)
         if path.suffix.lower() != ".pdf":
             return pr.write_html(path if path.suffix else path.with_suffix(".html"), body, imgs)
         doc = G.QTextDocument()

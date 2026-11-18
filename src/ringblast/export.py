@@ -1,6 +1,8 @@
 """Exports: DXF (ezdxf), hole table CSV, JSON summary, HTML report."""
 from __future__ import annotations
 
+import html as _html
+
 import base64
 import csv
 import io
@@ -372,7 +374,15 @@ def _png_b64(fig) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def export_report_html(path, result, stope, rock, expl, p, title="RingBlast report") -> Path:
+def report_meta(project: str = "") -> str:
+    """Line printed under the title of every report: project, program version, date and time."""
+    from datetime import datetime
+    from .about import NAME, VERSION
+    parts = ([f"Project: {project}"] if project else []) + [f"{NAME} {VERSION}", f"{datetime.now():%Y-%m-%d %H:%M}"]
+    return "  |  ".join(parts)
+
+
+def export_report_html(path, result, stope, rock, expl, p, title="Blast design report", project: str = "") -> Path:
     s = summary_dict(result, stope, rock, expl, p)
     tot = s["stope_totals"]
     lrows = "".join(
@@ -397,11 +407,12 @@ def export_report_html(path, result, stope, rock, expl, p, title="RingBlast repo
                     f"{zrows}</table><h3>Holes</h3><table><tr><th>#</th><th>Kind</th><th>Length (m)</th>"
                     f"<th>Stemming (m)</th><th>Charged (m)</th></tr>{hrows}</table>")
     warn = "".join(f"<li>{w}</li>" for w in result.warnings) or "<li>none</li>"
-    html = f"""<!doctype html><html><head><meta charset="utf-8"><title>{title}</title>
+    html = f"""<!doctype html><html><head><meta charset="utf-8"><title>{_html.escape(title)}</title>
 <style>body{{font-family:Segoe UI,Arial,sans-serif;max-width:900px;margin:2em auto;color:#222}}
 table{{border-collapse:collapse;margin:1em 0}}td,th{{border:1px solid #bbb;padding:3px 9px;text-align:right}}
 th{{background:#eee}}h2{{border-bottom:2px solid #2a6;padding-bottom:3px;page-break-before:always}}
-.f{{display:flex;gap:1em}}</style></head><body><h1>{title}</h1>
+.f{{display:flex;gap:1em}}.meta{{color:#555;margin-top:-0.6em}}</style></head><body><h1>{title}</h1>
+<p class="meta">{_html.escape(report_meta(project))}</p>
 <h2 style="page-break-before:avoid">Inputs</h2><p>Rock: <b>{rock.name}</b> &middot; Explosive: <b>{expl.name}</b> &middot;
 hole diameter {p.hole_diameter_mm:g} mm &middot; stope {stope.width:g} x {stope.height:g} m,
 {stope.n_sublevels} sublevels{' + base drift' if stope.base_drift else ''}, drift {stope.drift_width:g} x {stope.drift_height:g} m &middot;
@@ -421,7 +432,7 @@ burden method <b>{p.burden_method}</b>, S/B = {p.sb_ratio:g}</p>
 
 
 def export_report_docx(path, result: DesignResult, stope: StopeGeometry, rock: Rock, expl: Explosive,
-                       p: DesignParams, title: str = "RingBlast report") -> Path:
+                       p: DesignParams, title: str = "Blast design report", project: str = "") -> Path:
     """Word (.docx) version of the design report: inputs, results by level, ring pattern and
     fragmentation plots, zone and hole tables, warnings.  Needs the python-docx package."""
     from docx import Document
@@ -459,6 +470,7 @@ def export_report_docx(path, result: DesignResult, stope: StopeGeometry, rock: R
         doc.add_picture(buf, width=Cm(width_cm))
 
     doc.add_heading(title, 0)
+    doc.add_paragraph(report_meta(project))
     doc.add_heading("Inputs", 1)
     drifts = (f"{stope.drifts_per_sublevel} drift(s) per sublevel"
               + (f", wall distance {stope.drift_wall_distance_m:g} m" if stope.drifts_per_sublevel == 2

@@ -69,12 +69,14 @@ def _table(rows, head=None) -> str:
 
 
 def build(records: list, results: dict, load_image: Callable, predicted: Optional[tuple] = None,
-          log_x: bool = True, title: str = "Muck-pile photo analysis", img_w: int = 640) -> tuple[str, dict]:
+          log_x: bool = True, title: str = "Muck-pile photo analysis", img_w: int = 640,
+          project: str = "") -> tuple[str, dict]:
     from .export import plot_image_distributions
     imgs: dict[str, bytes] = {}
     done = [r for r in records if r.path in results]
     parts = [f"<h1>{html.escape(title)}</h1>",
-             f"<p>{NAME} {VERSION} &middot; {datetime.now():%Y-%m-%d %H:%M} &middot; "
+             f"<p>{(('Project: <b>' + html.escape(project) + '</b> &middot; ') if project else '')}"
+             f"{NAME} {VERSION} &middot; {datetime.now():%Y-%m-%d %H:%M} &middot; "
              f"{len(done)} analysed photo(s) of {len(records)}.</p>"]
 
     # ---- settings
@@ -147,7 +149,7 @@ def build(records: list, results: dict, load_image: Callable, predicted: Optiona
 
 
 def write_docx(path, records: list, results: dict, load_image: Callable, predicted: Optional[tuple] = None,
-               log_x: bool = True, title: str = "Muck-pile photo analysis") -> Path:
+               log_x: bool = True, title: str = "Muck-pile photo analysis", project: str = "") -> Path:
     """Word (.docx) version of the report: same content as the HTML report, editable in Word.
     Needs the python-docx package."""
     import cv2
@@ -186,7 +188,7 @@ def write_docx(path, records: list, results: dict, load_image: Callable, predict
 
     done = [r for r in records if r.path in results]
     doc.add_heading(title, 0)
-    doc.add_paragraph(f"{NAME} {VERSION}  |  {datetime.now():%Y-%m-%d %H:%M}  |  "
+    doc.add_paragraph((f"Project: {project}  |  " if project else "") + f"{NAME} {VERSION}  |  {datetime.now():%Y-%m-%d %H:%M}  |  "
                       f"{len(done)} analysed photo(s) of {len(records)}")
     sets = [settings_of(r) for r in done]
     same = len({tuple(sorted((k, str(v)) for k, v in s.items())) for s in sets}) <= 1

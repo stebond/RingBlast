@@ -2,6 +2,7 @@
 calls run_design() and shows / exports the results.   Run:  ringblast-gui"""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -113,7 +114,7 @@ class MainWindow(W.QMainWindow):
                          ("Manual burden (m, 0 = off)", self.w["manual"])]:
             design.addRow(label, w)
         self.run_btn = W.QPushButton("Run design"); self.run_btn.clicked.connect(self.run)
-        self.btn_export = W.QPushButton("Export DXF / CSV / JSON / HTML..."); self.btn_export.clicked.connect(self.export)
+        self.btn_export = W.QPushButton("Export DXF / CSV / JSON / HTML / DOCX..."); self.btn_export.clicked.connect(self.export)
         self.btn_export.setEnabled(False)
         design.addRow("Show level", self.level)
         design.addRow(self.show_zones)
@@ -138,6 +139,8 @@ class MainWindow(W.QMainWindow):
         self.rock_tab = DataTab("rocks", "Rock properties used by the burden methods and Kuz-Ram.")
         self.expl_tab = DataTab("explosives", "Explosive properties (density, energy, VOD, relative weight strength).")
         self.images_tab = ImagesTab(lambda: self.result)
+        self.images_tab.project_name = lambda: self.proj_name.text().strip()
+        self.images_tab.ask_project_name = self.ensure_project_name
         self.settings_tab = SettingsTab()
         self.rock_tab.changed.connect(self.reload_databases)
         self.expl_tab.changed.connect(self.reload_databases)
@@ -211,7 +214,7 @@ class MainWindow(W.QMainWindow):
             (w["zone"], "Radial thickness R (m) of the annular zones around the fan centre, used to predict fragmentation with distance from the drift."),
             (w["manual"], "If larger than 0, this burden (m) is used instead of the selected method."),
             (self.run_btn, "Computes the holes, charging and fragmentation for all levels with the current inputs."),
-            (self.btn_export, "Writes the DXF drawing, the hole table (CSV), the JSON data and the HTML report. Available after Run design."),
+            (self.btn_export, "Writes the DXF drawing, the hole table (CSV), the JSON data, the HTML report and the Word (.docx) report, all named after the project. Available after Run design."),
             (self.proj_name, "Name of the project; it is used in file names and reports."),
             (self.proj_notes, "Free notes: site, blast number, remarks."),
         ])
@@ -365,8 +368,27 @@ class MainWindow(W.QMainWindow):
         d.mkdir(exist_ok=True)
         return d
 
+    def ensure_project_name(self, purpose: str = "continue") -> str:
+        """Project name of the project bar; when it is empty the user is asked for one (a suggestion
+        'Blast design_YYYY-MM-DD' is offered). Returns "" if the user cancels: nothing is then written."""
+        name = self.proj_name.text().strip()
+        if name:
+            return name
+        from datetime import date
+        text, ok = W.QInputDialog.getText(
+            self, "Project name",
+            f"A project name is needed to {purpose}.\nType a name, or accept the suggested one:",
+            W.QLineEdit.Normal, f"Blast design_{date.today():%Y-%m-%d}")
+        text = text.strip()
+        if not ok or not text:
+            return ""
+        self.proj_name.setText(text)
+        return text
+
     def save_project(self):
-        name = self.proj_name.text().strip() or "project"
+        name = self.ensure_project_name("save the project")
+        if not name:
+            return
         path, _ = W.QFileDialog.getSaveFileName(self, "Save project", str(self._project_dir() / (name + project.EXTENSION)),
                                                 f"RingBlast project (*{project.EXTENSION})")
         if path:
@@ -533,22 +555,23 @@ class MainWindow(W.QMainWindow):
         self.plots.setCurrentIndex(max(cur, 0))
 
     def export(self):
+        name = self.ensure_project_name("export the results")
+        if not name:
+            return
         default = WORK / "output"
         default.mkdir(exist_ok=True)
         folder = W.QFileDialog.getExistingDirectory(self, "Output folder", str(default))
         if not folder:
             return
         rock, ex, stope, p = self._ctx
-        out = Path(folder) / (self.proj_name.text().strip().replace(" ", "_") or "ringblast")
+        out = Path(folder) / (re.sub(r"[^\w.-]+", "_", name).strip("_") or "ringblast")
         export_dxf(out.with_suffix(".dxf"), self.result, stope, params=p)
         export_hole_csv(out.with_suffix(".holes.csv"), self.result, stope, p)
         export_json(out.with_suffix(".json"), self.result, stope, rock, ex, p)
-        export_report_html(out.with_suffix(".html"), self.result, stope, rock, ex, p,
-                           self.proj_name.text().strip() or "RingBlast report")
+        export_report_html(out.with_suffix(".html"), self.result, stope, rock, ex, p, project=name)
         word = ""
         try:
-            export_report_docx(out.with_suffix(".docx"), self.result, stope, rock, ex, p,
-                               self.proj_name.text().strip() or "RingBlast report")
+            export_report_docx(out.with_suffix(".docx"), self.result, stope, rock, ex, p, project=name)
             word = ", Word report"
         except ImportError:
             pass                                          # python-docx not installed: the other files are still written

@@ -1102,3 +1102,71 @@ def test_level_labels_centred_and_inside_the_axes():
 def level_specs_for(stope):
     from ringblast.geometry import level_specs
     return level_specs(stope, 0.0)
+
+
+# ---------------------------------------------------------------- project name, version and date in the reports
+
+
+def _design_case():
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.models import DesignParams
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    s, p = _twin(-1), DesignParams()
+    return run_design(rock, ex, s, p), s, rock, ex, p
+
+
+def test_reports_carry_project_version_and_date(tmp_path):
+    import docx
+    from datetime import datetime
+    from ringblast.about import VERSION
+    from ringblast.export import export_report_docx, export_report_html
+    res, s, rock, ex, p = _design_case()
+    h = export_report_html(tmp_path / "r.html", res, s, rock, ex, p, project="My <stope>").read_text(encoding="utf-8")
+    assert "Project: My &lt;stope&gt;" in h and f"RingBlast {VERSION}" in h and f"{datetime.now():%Y-%m-%d}" in h
+    d = docx.Document(str(export_report_docx(tmp_path / "r.docx", res, s, rock, ex, p, project="My stope")))
+    meta = [x.text for x in d.paragraphs if x.text.startswith("Project:")]
+    assert meta and f"RingBlast {VERSION}" in meta[0] and f"{datetime.now():%Y-%m-%d}" in meta[0]
+
+
+def test_photo_reports_carry_project(win, tmp_path):
+    import cv2
+    im, _ = make_photo()
+    f = tmp_path / "p.png"; cv2.imwrite(str(f), im)
+    tab = win.images_tab
+    tab.add_files([str(f)])
+    tab.set_scale_points((100, 100), (100 + 60 * SCALE, 100), 60.0)
+    tab.analyse_all()
+    assert "Project: <b>Site A</b>" in tab.write_report(tmp_path / "a.html", "Site A").read_text(encoding="utf-8")
+    import docx
+    d = docx.Document(str(tab.write_report(tmp_path / "a.docx", "Site A")))
+    assert any(x.text.startswith("Project: Site A") for x in d.paragraphs)
+    win.proj_name.setText("From bar")
+    assert "Project: <b>From bar</b>" in tab.write_report(tmp_path / "b.html").read_text(encoding="utf-8")
+
+
+def test_project_name_required_with_suggestion(win, monkeypatch, tmp_path):
+    from PySide6 import QtWidgets as W
+    seen = {}
+
+    def ask(parent, title, label, mode, text):
+        seen["suggest"] = text
+        return seen.get("answer", ("", False))
+    monkeypatch.setattr(W.QInputDialog, "getText", staticmethod(ask))
+    monkeypatch.setattr(W.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: pytest.fail("dialog opened")))
+    monkeypatch.setattr(W.QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: pytest.fail("dialog opened")))
+    win.proj_name.clear()
+    win.save_project()                                   # cancelled: no file dialog, no project written
+    win.export()
+    from datetime import date
+    assert seen["suggest"] == f"Blast design_{date.today():%Y-%m-%d}" and win.proj_name.text() == ""
+    seen["answer"] = ("   ", True)                        # an empty name is not accepted either
+    assert win.ensure_project_name("test") == "" and win.proj_name.text() == ""
+    seen["answer"] = ("Site A", True)
+    assert win.ensure_project_name("test") == "Site A" and win.proj_name.text() == "Site A"
+    seen.clear(); seen["answer"] = ("other", True)
+    assert win.ensure_project_name("test") == "Site A" and "suggest" not in seen   # already named: no question
+
+
+def test_export_button_mentions_docx(win):
+    assert "DOCX" in win.btn_export.text() and "Word" in win.btn_export.toolTip()
