@@ -223,7 +223,7 @@ def test_icon_files_and_window_icon(win):
     root = Path(__file__).resolve().parents[1] / "launcher"
     assert {(s, s) for s in (16, 32, 48, 256)} <= Image.open(root / "ringblast.ico").info["sizes"]
     assert not win.windowIcon().isNull() and win.windowIcon().availableSizes()
-    assert len((root / "RingBlast.vbs").read_text(encoding="utf-8").splitlines()) > 5
+    assert (root / "RingBlast.vbs").read_bytes().count(b"\r\n") > 5
 
 
 def test_screenshot_script_runs(tmp_path):
@@ -520,6 +520,19 @@ def test_paths_portable_and_selftest(tmp_path, monkeypatch):
     # a frozen macOS app keeps its data in the standard user folder, not inside the bundle
     monkeypatch.setattr("sys.platform", "darwin")
     assert paths.user_dir() == Path.home() / "Library" / "Application Support" / "RingBlast"
+
+
+def test_work_dir_rules(tmp_path, monkeypatch):
+    from ringblast import paths
+    monkeypatch.delenv("RINGBLAST_WORK", raising=False)
+    monkeypatch.setattr("sys.frozen", True, raising=False)
+    monkeypatch.setattr("sys.executable", str(tmp_path / "RingBlast"))
+    monkeypatch.setattr("sys.platform", "linux")
+    assert paths.work_dir() == tmp_path.resolve()                    # writable program folder
+    monkeypatch.setattr("sys.platform", "darwin")
+    assert paths.work_dir() == Path.home() / "Documents" / "RingBlast"   # .app bundle: never inside
+    monkeypatch.setenv("RINGBLAST_WORK", str(tmp_path / "w"))
+    assert paths.work_dir() == tmp_path / "w"
 
 
 def test_gui_selftest(capsys):

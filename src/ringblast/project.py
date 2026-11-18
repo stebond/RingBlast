@@ -6,7 +6,7 @@ database rows, photo records), a copy of every photo (images/NNN/<name>) and the
 fragment sizes of every analysed photo (results/NNN.json).  It can be copied to another computer
 and opened there with everything inside.  Plain-JSON projects of earlier versions still open
 (their photos are found by path).  When a project is opened its photos are extracted to
-~/.ringblast/project_images/<project id>/.
+<user folder>/project_images/<project id>/.
 """
 from __future__ import annotations
 

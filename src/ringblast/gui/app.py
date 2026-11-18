@@ -23,7 +23,7 @@ from .images_tab import ImagesTab
 from .settings_tab import SettingsTab
 
 ROOT = paths.resource_root()                         # bundled resources (launcher icons, ...)
-WORK = paths.app_dir()                               # folder shown to the user (projects/, output/)
+WORK = paths.work_dir()                              # folder shown to the user (projects/, output/)
 
 
 def _spin(value, lo, hi, step=0.1, dec=2):

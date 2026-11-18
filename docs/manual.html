@@ -94,7 +94,7 @@ Holes shorter than 1 m are dropped; charging follows the rules: stemming 20 hole
 <b>Import CSV...</b> / <b>Export CSV...</b> exchange tables with other programs, <b>Delete / restore selected</b> removes a row you added or
 restores the original values of a built-in row, and <b>Reset to original values</b> brings back the shipped database.</p>
 <ul>
- <li>Only your <i>new or modified</i> rows are stored in your user folder (<code>~/.ringblast</code>); the built-in data are never overwritten.</li>
+ <li>Only your <i>new or modified</i> rows are stored in your user folder (see Appendix A for its position on each system); the built-in data are never overwritten.</li>
  <li>The built-in explosive values come from the legacy macro: check them against the manufacturer's datasheet before using them in a real design. Column <code>verified</code> marks the checked rows.</li>
  <li>When you save a project, the rows of the rock and explosive that you used are stored in it, so the project opens identically on another computer.</li>
 </ul>
@@ -146,7 +146,7 @@ Always check the result on a few photos by eye (<i>Fragments</i> view), use seve
 <ul>
  <li><b>Save project...</b> writes one file (<code>*.ringblast</code>) containing the inputs, the rock and explosive rows used, the photo records with all their settings and measurements <b>and the photos themselves</b>. Copy that single file to another computer to continue the work there.
      The file grows with the photos (a few MB each). If an original photo can no longer be found, the project is still saved and a warning names the missing file.</li>
- <li><b>Open project...</b> restores everything. Photos are extracted to <code>~/.ringblast/project_images</code>. Projects saved with earlier versions (plain <code>.json</code>) still open.</li>
+ <li><b>Open project...</b> restores everything. Photos are extracted to the <code>project_images</code> folder of the data folder (Appendix A). Projects saved with earlier versions (plain <code>.json</code>) still open.</li>
  <li><b>Reset</b> returns to the default inputs and clears name, notes and photos. The two data tables and the plot settings have their own reset buttons.</li>
 </ul>
 
@@ -158,7 +158,7 @@ Always check the result on a few photos by eye (<i>Fragments</i> view), use seve
 <tr><td><code>*.json</code></td><td>All inputs and results in machine-readable form.</td></tr>
 <tr><td><code>*.html</code></td><td>Printable report with the figures and tables.</td></tr>
 </table>
-<p>Files go to the folder you choose (default <code>output</code> inside the program folder). The same calculation is available from the command line: <code>ringblast run case.json</code>.</p>
+<p>Files go to the folder you choose (default <code>output</code> of the work folder, see Appendix A). The same calculation is available from the command line: <code>ringblast run case.json</code>.</p>
 
 <h2 id="method">9. What is calculated, assumptions and limits</h2>
 <ul>
@@ -179,6 +179,28 @@ Always check the result on a few photos by eye (<i>Fragments</i> view), use seve
 </table>
 
 <h2 id="cite">11. How to cite</h2>
-<p><b>Updates.</b> Once a day, in the background, the program checks on GitHub whether a newer release exists and asks whether to download it (choices: Download, Remind me later, Skip this version). <b>Help &rarr; Check for updates...</b> does it at once; the automatic check can be switched off in the Settings tab. Nothing is installed automatically: the new portable program is downloaded as a zip file and unzipped in a new folder; projects and settings are kept.</p>
+<p><b>Updates.</b> Once a day, in the background, the program checks on GitHub whether a newer release exists and asks whether to download it (choices: Download, Remind me later, Skip this version). <b>Help &rarr; Check for updates...</b> does it at once; the automatic check can be switched off in the Settings tab. Nothing is installed automatically: the portable package for your system (zip on Windows, tar.gz on Linux and macOS) is downloaded and extracted in a new folder. On Windows and Linux copy the old <code>RingBlast_data</code> folder into the new one to keep your settings; on macOS nothing has to be copied (Appendix A).</p>
 <p>See <b>Help &rarr; About RingBlast</b> for the version number and the reference text to cite. Report problems and suggestions to the authors at the address shown there, including the program information that the About window can copy.</p>
+
+<h2 id="install">Appendix A. Installation, data and work folders (Windows, Linux, macOS)</h2>
+<p>Every release contains three portable packages that need no installation and no Python:
+<b>Windows</b> <code>RingBlast-portable-&lt;version&gt;-windows.zip</code> (unzip, start <code>RingBlast.exe</code>; if SmartScreen warns, <i>More info &rarr; Run anyway</i>);
+<b>Linux</b> <code>...-linux.tar.gz</code> (<code>tar xzf</code>, then <code>./RingBlast/RingBlast</code>; on Ubuntu/Debian <code>sudo apt install libxcb-cursor0 libxkbcommon-x11-0 libegl1</code> if the program does not start; <code>chmod +x</code> if needed);
+<b>macOS</b> <code>...-macos.tar.gz</code> (Apple-chip Macs; move <code>RingBlast.app</code> to Applications; the app is not signed: the first time right-click &rarr; Open, or <code>xattr -cr RingBlast.app</code>).
+Extract the Windows and Linux packages in a folder where you can write. From the Python sources: <code>pip install -e ".[gui]"</code> then <code>ringblast-gui</code> (Windows: <i>RingBlast.bat</i>).</p>
+<p>RingBlast uses a <b>data folder</b> (own rocks and explosives, plot style, interface options, photos of opened projects; it survives updates) and a <b>work folder</b> (default <code>projects</code> and <code>output</code> offered by the file dialogs). Your projects (<code>*.ringblast</code>) are never inside the data folder.</p>
+<table>
+<tr><th>How the program is run</th><th>Data folder</th><th>Work folder</th></tr>
+<tr><td>Windows, portable <code>RingBlast.exe</code></td><td><code>RingBlast_data</code> next to the program</td><td><code>projects</code>, <code>output</code> next to the program</td></tr>
+<tr><td>Linux, portable <code>RingBlast</code></td><td><code>RingBlast_data</code> next to the program</td><td><code>projects</code>, <code>output</code> next to the program</td></tr>
+<tr><td>macOS, <code>RingBlast.app</code></td><td><code>~/Library/Application Support/RingBlast</code></td><td><code>~/Documents/RingBlast/projects</code> and <code>.../output</code></td></tr>
+<tr><td>Python sources (any system)</td><td><code>.ringblast</code> in your home folder (<code>C:\Users\name\.ringblast</code>, <code>~/.ringblast</code>)</td><td><code>projects</code>, <code>output</code> in the project folder</td></tr>
+<tr><td>Program folder read-only (Windows, Linux)</td><td><code>~/.ringblast</code></td><td><code>~/Documents/RingBlast</code></td></tr>
+</table>
+<ul>
+ <li>Portable mode keeps everything in the program folder, so the folder can be copied to a USB stick. An empty file <code>portable.txt</code> in the project folder enables it for the Python sources.</li>
+ <li>macOS applications cannot be modified, hence the system folders above (in Finder: <i>Go &rarr; Go to Folder...</i>, <code>~/Library</code>).</li>
+ <li>The environment variables <code>RINGBLAST_HOME</code> (data folder) and <code>RINGBLAST_WORK</code> (work folder) override these rules.</li>
+ <li>Updating: a new version is a new folder or app. Windows/Linux: copy <code>RingBlast_data</code> (and <code>projects</code>, <code>output</code> if used) from the old folder to the new one. macOS: nothing to copy.</li>
+</ul>
 </body></html>
