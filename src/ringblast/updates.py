@@ -10,6 +10,7 @@ Release tags must look like `v0.2.0`.  When a release carries a `RingBlast-porta
 from __future__ import annotations
 
 import json
+import sys
 import os
 import re
 import urllib.error
@@ -75,8 +76,11 @@ def _get(url: str, opener: Callable = urllib.request.urlopen):
 
 
 def _asset(assets: list) -> str:
-    zips = [a for a in assets or [] if str(a.get("name", "")).lower().endswith(".zip")]
-    best = next((a for a in zips if "portable" in a["name"].lower()), zips[0] if zips else None)
+    """Portable archive of the running platform (zip on Windows/macOS, tar.gz on Linux)."""
+    plat = "windows" if sys.platform == "win32" else "macos" if sys.platform == "darwin" else "linux"
+    cands = [a for a in assets or [] if str(a.get("name", "")).lower().endswith((".zip", ".tar.gz"))]
+    best = (next((a for a in cands if plat in a["name"].lower()), None)
+            or next((a for a in cands if "portable" in a["name"].lower()), None))
     return best.get("browser_download_url", "") if best else ""
 
 
