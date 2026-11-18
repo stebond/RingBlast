@@ -223,7 +223,7 @@ def test_icon_files_and_window_icon(win):
     root = Path(__file__).resolve().parents[1] / "launcher"
     assert {(s, s) for s in (16, 32, 48, 256)} <= Image.open(root / "ringblast.ico").info["sizes"]
     assert not win.windowIcon().isNull() and win.windowIcon().availableSizes()
-    assert (root / "RingBlast.vbs").read_bytes().count(b"\r\n") > 5
+    assert len((root / "RingBlast.vbs").read_text(encoding="utf-8").splitlines()) > 5
 
 
 def test_screenshot_script_runs(tmp_path):

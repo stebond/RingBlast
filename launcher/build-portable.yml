@@ -23,7 +23,7 @@ jobs:
             tag: linux
             exe: dist/RingBlast/RingBlast
             archive: dist/RingBlast-portable-*.tar.gz
-          - os: macos-14          # Apple Silicon (M1/M2/M3...)
+          - os: macos-latest        # Apple Silicon
             tag: macos
             exe: dist/RingBlast.app/Contents/MacOS/RingBlast
             archive: dist/RingBlast-portable-*.tar.gz
