@@ -514,8 +514,12 @@ def test_paths_portable_and_selftest(tmp_path, monkeypatch):
     assert paths.frozen() is False
     monkeypatch.setattr("sys.frozen", True, raising=False)
     monkeypatch.setattr("sys.executable", str(tmp_path / "RingBlast.exe"))
+    monkeypatch.setattr("sys.platform", "linux")
     assert paths.portable() and paths.user_dir() == tmp_path / "RingBlast_data"
     assert paths.app_dir() == tmp_path.resolve()
+    # a frozen macOS app keeps its data in the standard user folder, not inside the bundle
+    monkeypatch.setattr("sys.platform", "darwin")
+    assert paths.user_dir() == Path.home() / "Library" / "Application Support" / "RingBlast"
 
 
 def test_gui_selftest(capsys):
