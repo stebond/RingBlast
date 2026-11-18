@@ -33,14 +33,14 @@ def test_gui_layout_drawn_before_run():
     from ringblast.gui.app import MainWindow
     app = W.QApplication.instance() or W.QApplication([])
     w = MainWindow()
-    assert w.result is None and w.plots.count() == 0 and w.tabs.tabText(0) == "Stope layout" and w.tabs.tabText(1) == "Blast design"
+    assert w.result is None and w.plots.count() == 1 and w.plots.tabText(0) == "Layout" and w.tabs.tabText(0) == "Stope layout" and w.tabs.tabText(1) == "Blast design"
     assert w.run_btn.isEnabled() and "Layout OK" in w.layout_status.text()
     w.w["n_sub"].setValue(4)                                   # changing geometry redraws, no calculation
-    assert w.result is None and w.plots.count() == 0
+    assert w.result is None and w.plots.count() == 1
     w.w["width"].setValue(4)                                   # drift wider than the stope
     assert not w.run_btn.isEnabled() and "not valid" in w.layout_status.text()
     w.w["width"].setValue(25)
     w.run()
     assert w.plots.count() == 2 and w.plots.tabText(0) == "Pattern"
     w.w["height"].setValue(100)                                # geometry change invalidates results
-    assert w.result is None and not w.btn_export.isEnabled() and w.plots.count() == 0
+    assert w.result is None and not w.btn_export.isEnabled() and w.plots.count() == 1

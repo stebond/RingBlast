@@ -31,7 +31,7 @@ DEFAULT_INPUTS = {
     "width": 25.0, "height": 80.0, "n_sub": 2, "dw": 5.0, "dh": 5.0, "angle": 55.0,
     "drifts": 1, "twin_position": "sides", "show_zones": True, "log_x": True, "booster": "", "bcl": 0.5,
     "drift_vertical": "top", "dtop": 0.0, "arch": 0.0,
-    "wd": 0.0, "d": 80.0, "sb": 1.25, "f": 0.65, "c": 0.8, "A": 10.0, "zone": 5.0, "manual": 0.0,
+    "wd": 0.0, "gap": 5.0, "vg": 2.0, "hg": 1.0, "d": 80.0, "sb": 1.25, "f": 0.65, "c": 0.8, "A": 10.0, "zone": 5.0, "manual": 0.0,
 }
 
 
@@ -45,6 +45,7 @@ class ImageRecord:
     scale_px_per_cm: Optional[float] = None
     scale_points: list = field(default_factory=list)      # two (x, y) pixel points of the reference
     scale_length_cm: Optional[float] = None               # real length between those points
+    roi: list = field(default_factory=list)              # area of interest [x0, y0, x1, y1] in photo pixels; empty = whole photo
     min_size_cm: float = 3.0
     sensitivity: float = 0.5
     seg: dict = field(default_factory=dict)       # segmentation options (see imageanalysis.SEG_DEFAULTS)

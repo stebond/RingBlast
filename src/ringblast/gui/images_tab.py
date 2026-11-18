@@ -10,7 +10,7 @@ import numpy as np
 from PySide6 import QtCore as C
 from PySide6 import QtGui as G
 from PySide6 import QtWidgets as W
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
+from .zoomcanvas import ZoomCanvas as Canvas
 
 from .. import imageanalysis as ia
 from ..export import plot_image_distributions, stope_passing_curve
@@ -25,8 +25,14 @@ def bgr_to_pixmap(img: np.ndarray) -> G.QPixmap:
 
 
 class ImageView(W.QLabel):
-    """Shows a photo scaled to fit; collects the two clicks of the scale reference."""
+    """Shows a photo scaled to fit; collects the two clicks of the scale reference.
+
+    Mouse wheel = zoom around the cursor (to inspect the fragments), left-button drag (or middle button)
+    = pan, double-click = back to the whole photo.  While the scale is being picked, a left click picks
+    a point instead of panning, so the two points can be placed precisely on a zoomed photo."""
     pointsPicked = C.Signal(list)
+    roiPicked = C.Signal(list)              # [x0, y0, x1, y1] in photo pixels
+    MAX_ZOOM = 40.0
 
     def __init__(self):
         super().__init__()
@@ -34,26 +40,62 @@ class ImageView(W.QLabel):
         self.setSizePolicy(W.QSizePolicy.Expanding, W.QSizePolicy.Expanding)
         self.setAlignment(C.Qt.AlignCenter)
         self.setText("No photo")
+        self.setToolTip("Mouse wheel: zoom in/out around the cursor. Drag with the left (or middle) button: move the photo. "
+                        "Double-click: show the whole photo.")
         self._pix = None
         self.pick_mode = False
         self.points: list = []
+        self._zoom = 1.0                    # 1 = whole photo fitted in the view
+        self._origin = None                 # top-left of the photo in view coordinates when zoomed
+        self._drag = None                   # (mouse position, origin) while panning
+        self.roi: list = []                 # area of interest to outline, [x0, y0, x1, y1]
+        self.roi_mode = False               # True while the user drags the rectangle of the area of interest
+        self._roi_a = None                  # drag start / current point, photo pixels
+        self._roi_b = None
 
+    # ------------------------------------------------------------ geometry
     def set_image(self, img: np.ndarray | None):
+        old = (self._pix.width(), self._pix.height()) if self._pix is not None else None
         self._pix = bgr_to_pixmap(img) if img is not None else None
+        if self._pix is None or old != (self._pix.width(), self._pix.height()):
+            self.reset_zoom()               # another photo: start from the whole picture
         self.update()
 
+    def reset_zoom(self):
+        self._zoom, self._origin = 1.0, None
+        self.update()
+
+    def zoom_factor(self) -> float:
+        return self._zoom
+
+    def _fit_k(self) -> float:
+        return min(self.width() / self._pix.width(), self.height() / self._pix.height())
+
+    def _clamp_origin(self, o: C.QPointF, k: float) -> C.QPointF:
+        """Keep the photo covering the view (or centred when it is smaller than the view)."""
+        x, y = o.x(), o.y()
+        rw, rh = self._pix.width() * k, self._pix.height() * k
+        x = (self.width() - rw) / 2 if rw <= self.width() else min(0.0, max(self.width() - rw, x))
+        y = (self.height() - rh) / 2 if rh <= self.height() else min(0.0, max(self.height() - rh, y))
+        return C.QPointF(x, y)
+
     def _rect(self):
-        w, h = self._pix.width(), self._pix.height()
-        k = min(self.width() / w, self.height() / h)
-        rw, rh = w * k, h * k
-        return C.QRectF((self.width() - rw) / 2, (self.height() - rh) / 2, rw, rh), k
+        k = self._fit_k() * self._zoom
+        if self._origin is None or self._zoom <= 1.0:
+            o = C.QPointF((self.width() - self._pix.width() * k) / 2, (self.height() - self._pix.height() * k) / 2)
+        else:
+            o = self._clamp_origin(self._origin, k)
+        return C.QRectF(o.x(), o.y(), self._pix.width() * k, self._pix.height() * k), k
 
     def paintEvent(self, ev):
         if self._pix is None:
             return super().paintEvent(ev)
         p = G.QPainter(self)
         r, k = self._rect()
-        p.drawPixmap(r.toRect(), self._pix)
+        p.setRenderHint(G.QPainter.SmoothPixmapTransform, k < 3)     # pixels stay sharp at high zoom
+        vis = r.intersected(C.QRectF(self.rect()))                    # draw only the visible part
+        src = C.QRectF((vis.x() - r.x()) / k, (vis.y() - r.y()) / k, vis.width() / k, vis.height() / k)
+        p.drawPixmap(vis, self._pix, src)
         p.setPen(G.QPen(G.QColor("#ffd400"), 2))
         pts = [C.QPointF(r.x() + x * k, r.y() + y * k) for x, y in self.points]
         for q in pts:
@@ -61,9 +103,59 @@ class ImageView(W.QLabel):
             p.drawLine(q + C.QPointF(0, -6), q + C.QPointF(0, 6))
         if len(pts) == 2:
             p.drawLine(pts[0], pts[1])
+        rect = None
+        if self._roi_a is not None and self._roi_b is not None:
+            rect = [*self._roi_a, *self._roi_b]
+        elif len(self.roi) == 4:
+            rect = self.roi
+        if rect:
+            x0, x1 = sorted((rect[0], rect[2])); y0, y1 = sorted((rect[1], rect[3]))
+            pen = G.QPen(G.QColor("#00e5ff"), 2, C.Qt.DashLine)
+            p.setPen(pen); p.setBrush(C.Qt.NoBrush)
+            p.drawRect(C.QRectF(r.x() + x0 * k, r.y() + y0 * k, (x1 - x0) * k, (y1 - y0) * k))
+        if self._zoom > 1.001:
+            p.setPen(G.QColor("white")); p.setBrush(G.QColor(0, 0, 0, 150))
+            txt = f"x{self._zoom:.1f}  (double-click: whole photo)"
+            box = C.QRectF(6, 6, p.fontMetrics().horizontalAdvance(txt) + 14, p.fontMetrics().height() + 6)
+            p.drawRoundedRect(box, 4, 4)
+            p.drawText(box, C.Qt.AlignCenter, txt)
+
+    # ------------------------------------------------------------ mouse
+    def wheelEvent(self, ev):
+        if self._pix is None:
+            return super().wheelEvent(ev)
+        steps = ev.angleDelta().y() / 120.0
+        if steps == 0:
+            return
+        r, k = self._rect()
+        cur = ev.position()
+        point = C.QPointF((cur.x() - r.x()) / k, (cur.y() - r.y()) / k)          # photo point under the cursor
+        self._zoom = min(self.MAX_ZOOM, max(1.0, self._zoom * (1.25 ** steps)))
+        k2 = self._fit_k() * self._zoom
+        self._origin = C.QPointF(cur.x() - point.x() * k2, cur.y() - point.y() * k2)   # ... stays under it
+        if self._zoom <= 1.0:
+            self._origin = None
+        self.update()
+        ev.accept()
+
+    def mouseDoubleClickEvent(self, ev):
+        if self._pix is not None:
+            self.reset_zoom()
 
     def mousePressEvent(self, ev):
-        if not (self.pick_mode and self._pix is not None):
+        if self._pix is None:
+            return
+        if self.roi_mode and ev.button() == C.Qt.LeftButton:
+            self._roi_a = self._roi_b = self._to_photo(ev.position())
+            self.update()
+            return
+        pan = ev.button() == C.Qt.MiddleButton or (ev.button() == C.Qt.LeftButton and not (self.pick_mode or self.roi_mode))
+        if pan and self._zoom > 1.0:
+            r, _ = self._rect()
+            self._drag = (ev.position(), C.QPointF(r.x(), r.y()))
+            self.setCursor(C.Qt.ClosedHandCursor)
+            return
+        if not (self.pick_mode and ev.button() == C.Qt.LeftButton):
             return
         r, k = self._rect()
         x, y = (ev.position().x() - r.x()) / k, (ev.position().y() - r.y()) / k
@@ -73,6 +165,38 @@ class ImageView(W.QLabel):
             if len(self.points) == 2:
                 self.pick_mode = False
                 self.pointsPicked.emit(list(self.points))
+
+    def _to_photo(self, pos):
+        """View position -> photo pixel, clamped to the photo."""
+        r, k = self._rect()
+        x = min(max((pos.x() - r.x()) / k, 0.0), float(self._pix.width()))
+        y = min(max((pos.y() - r.y()) / k, 0.0), float(self._pix.height()))
+        return (x, y)
+
+    def mouseMoveEvent(self, ev):
+        if self._roi_a is not None:
+            self._roi_b = self._to_photo(ev.position())
+            self.update()
+            return
+        if self._drag is not None:
+            start, o0 = self._drag
+            d = ev.position() - start
+            self._origin = C.QPointF(o0.x() + d.x(), o0.y() + d.y())
+            self.update()
+
+    def mouseReleaseEvent(self, ev):
+        if self._roi_a is not None:
+            a, b = self._roi_a, self._to_photo(ev.position())
+            self._roi_a = self._roi_b = None
+            self.roi_mode = False
+            self.unsetCursor()
+            if abs(a[0] - b[0]) >= 20 and abs(a[1] - b[1]) >= 20:     # ignore a simple click
+                self.roiPicked.emit([min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1])])
+            self.update()
+            return
+        if self._drag is not None:
+            self._drag = None
+            self.unsetCursor()
 
 
 class ImagesTab(W.QWidget):
@@ -91,7 +215,9 @@ class ImagesTab(W.QWidget):
         btns = W.QGridLayout()
         for i, (t, f) in enumerate([("Add photos...", self.add_dialog), ("Remove", self.remove_selected),
                                     ("Analyse selected", self.analyse_selected), ("Analyse all", self.analyse_all),
-                                    ("Export results...", self.export_dialog)]):
+                                    ("Export results...", self.export_dialog),
+                                    ("Save all photos...", self.save_photos_dialog),
+                                    ("Report (HTML / PDF)...", self.report_dialog)]):
             b = W.QPushButton(t); b.clicked.connect(lambda _=False, fn=f: fn())
             btns.addWidget(b, i // 2, i % 2)
 
@@ -105,13 +231,22 @@ class ImagesTab(W.QWidget):
         self.scale.setSpecialValueText("not set"); self.scale.setSuffix(" px/cm")
         self.scale_btn = W.QPushButton("Set scale: click two points of a known length")
         self.scale_btn.clicked.connect(self.begin_scale)
+        self.roi_btn = W.QPushButton("Select area of interest: drag a rectangle")
+        self.roi_btn.clicked.connect(self.begin_roi)
+        self.roi_clear = W.QPushButton("Whole photo")
+        self.roi_clear.clicked.connect(self.clear_roi)
+        self.roi_label = W.QLabel("Area of interest: whole photo")
+        self.roi_label.setWordWrap(True)
         self.min_size = W.QDoubleSpinBox(); self.min_size.setRange(0.5, 200); self.min_size.setValue(3.0)
         self.min_size.setSuffix(" cm")
         self.sens = W.QDoubleSpinBox(); self.sens.setRange(0, 1); self.sens.setSingleStep(0.1); self.sens.setValue(0.5)
         form = W.QFormLayout()
         for label, w in [("Date", self.date), ("Location", self.location), ("Notes", self.notes),
-                         ("Image scale", self.scale), ("", self.scale_btn)]:
+                         ("Image scale", self.scale), ("", self.scale_btn),
+                         ("Analysed area", self.roi_label)]:
             form.addRow(label, w)
+        roi_row = W.QHBoxLayout(); roi_row.addWidget(self.roi_btn, 1); roi_row.addWidget(self.roi_clear)
+        form.addRow("", roi_row)
         seg_form = self._build_segmentation_controls()
         for w in (self.location, self.notes):
             w.textChanged.connect(self._save_form)
@@ -129,6 +264,7 @@ class ImagesTab(W.QWidget):
         lv.addLayout(btns); lv.addWidget(self.left_tabs, 2)
 
         self.view = ImageView(); self.view.pointsPicked.connect(self._points_picked)
+        self.view.roiPicked.connect(self._roi_picked)
         self.view_mode = W.QComboBox()
         self.view_mode.addItems(["Fragments", "Original photo", "Pre-processed (grey)", "Boundaries (red = rejected)"])
         self.view_mode.currentIndexChanged.connect(self._show_image)
@@ -156,7 +292,15 @@ class ImagesTab(W.QWidget):
             "Remove": "Removes the selected photo from the project (the original file is not touched).",
             "Analyse selected": "Measures the fragments of the selected photo with the current segmentation settings. Needs the image scale.",
             "Analyse all": "Analyses every photo that has a scale, each with its own settings.",
-            "Export results...": "Saves the summary CSV, the outlined images and the pooled size distribution."})
+            "Export results...": "Saves the summary CSV, the outlined images and the pooled size distribution.",
+            "Save all photos...": "Saves, for every analysed photo, the picture with the outlined fragments and a scale bar (PNG), "
+                                  "ready for papers and reports, together with the analysed part of the original photo.",
+            "Report (HTML / PDF)...": "Report of all analysed photos: photo and area of interest, outlined fragments, "
+                                  "settings, statistics and size distributions, and the distribution of the whole set. "
+                                  "Choose .html, .pdf or .docx (Word) as the file type.",
+            "Select area of interest: drag a rectangle": "Drag a rectangle on the photo around the part that has to be analysed "
+                                  "(the muck pile, not the drift walls or the floor). Only that area is analysed; the rest is darkened.",
+            "Whole photo": "Removes the area of interest: the whole photo will be analysed."})
         tips.set_all([
             (self.log_x, "Logarithmic scale for the size axis (default). Untick for a linear scale. Display only; results are unchanged."),
             (self.listw, "Photos of the project. Select one to see it and to edit its date, notes, scale and settings."),
@@ -241,7 +385,7 @@ class ImagesTab(W.QWidget):
     def current_parameters(r: ImageRecord) -> dict:
         """Every setting that influences the result of one photo."""
         return {**ia.SEG_DEFAULTS, **r.seg, "min_size_cm": r.min_size_cm, "sensitivity": r.sensitivity,
-                "scale_px_per_cm": r.scale_px_per_cm}
+                "scale_px_per_cm": r.scale_px_per_cm, "roi": [round(v) for v in r.roi]}
 
     def seg_values(self) -> dict:
         out = {}
@@ -358,7 +502,7 @@ class ImagesTab(W.QWidget):
 
     # ------------------------------------------------------------------ form <-> record
     def _form_enabled(self, on: bool):
-        for w in (self.date, self.location, self.notes, self.scale, self.scale_btn, self.min_size, self.sens,
+        for w in (self.date, self.location, self.notes, self.scale, self.scale_btn, self.roi_btn, self.roi_clear, self.min_size, self.sens,
                   *self.seg_w.values()):
             w.setEnabled(on)
 
@@ -373,8 +517,11 @@ class ImagesTab(W.QWidget):
             self.scale.setValue(r.scale_px_per_cm or 0.0)
             self._set_seg_widgets(r.seg, r.min_size_cm, r.sensitivity)
             self.view.points = [tuple(p) for p in r.scale_points]
+            self._roi_text(r)
         else:
             self.view.points = []
+            self.view.roi = []
+            self.roi_label.setText("whole photo")
         self._loading = False
         self._show_image()
         self.refresh_summary()
@@ -392,6 +539,7 @@ class ImagesTab(W.QWidget):
             r.scale_px_per_cm, r.scale_points, r.scale_length_cm = manual, [], None
             self.view.points = []
             self.view.update()
+            self._roi_text(r)
         self.changed.emit()
 
     def _image(self, rec: ImageRecord) -> np.ndarray | None:
@@ -413,15 +561,56 @@ class ImagesTab(W.QWidget):
         raw = self._image(r)
         mode = self.view_mode.currentIndex()
         img = raw
-        if mode == 0 and res is not None and res.overlay is not None:
-            img = res.overlay
+        self.view.roi = list(r.roi)
+        if mode == 0 and res is not None and res.overlay is not None and raw is not None:
+            img = ia.compose_roi(raw, r.analysed_with.get("roi") or [], res.overlay)    # whole photo, ROI outlined
         elif mode in (2, 3) and raw is not None:
             if r.scale_px_per_cm:
-                img = ia.stage_image(raw, r.scale_px_per_cm, r.min_size_cm, r.sensitivity, r.seg,
-                                     "pre" if mode == 2 else "mask")
+                part, _ = ia.crop_roi(raw, r.roi)
+                img = ia.compose_roi(raw, r.roi, ia.stage_image(part, r.scale_px_per_cm, r.min_size_cm, r.sensitivity,
+                                                                r.seg, "pre" if mode == 2 else "mask"))
             else:
                 self.status.setText("Set the image scale to preview the processing stages")
         self.view.set_image(img)
+
+    # ------------------------------------------------------------------ area of interest
+    def begin_roi(self):
+        r = self.current()
+        if r is None or self._image(r) is None:
+            W.QMessageBox.warning(self, "Area of interest", "Select a readable photo first.")
+            return
+        self.view_mode.setCurrentIndex(1)
+        self.view.roi_mode = True
+        self.view.setCursor(C.Qt.CrossCursor)
+        self.status.setText("Drag a rectangle on the photo (mouse wheel to zoom, middle button to move)")
+
+    def _roi_picked(self, roi: list):
+        r = self.current()
+        if r is None:
+            return
+        r.roi = [round(v) for v in roi]
+        self._roi_text(r)
+        self.changed.emit()
+        self._show_image()
+        self.status.setText("Area of interest set: press Analyse selected to analyse it")
+
+    def clear_roi(self):
+        r = self.current()
+        if r is not None and r.roi:
+            r.roi = []
+            self._roi_text(r)
+            self.changed.emit()
+            self._show_image()
+
+    def _roi_text(self, r: ImageRecord) -> None:
+        if len(r.roi) != 4:
+            self.roi_label.setText("whole photo")
+            return
+        w, h = abs(r.roi[2] - r.roi[0]), abs(r.roi[3] - r.roi[1])
+        txt = f"{w} x {h} px"
+        if r.scale_px_per_cm:
+            txt += f"  ({w / r.scale_px_per_cm / 100:.2f} x {h / r.scale_px_per_cm / 100:.2f} m)"
+        self.roi_label.setText(txt)
 
     # ------------------------------------------------------------------ scale
     def begin_scale(self):
@@ -477,7 +666,8 @@ class ImagesTab(W.QWidget):
                 if img is None:
                     problems.append(f"{r.name}: file not found or unreadable")
                     continue
-                res = ia.analyse_image(img, r.scale_px_per_cm, r.min_size_cm, r.sensitivity, params=r.seg)
+                part, _ = ia.crop_roi(img, r.roi)                    # only the area of interest
+                res = ia.analyse_image(part, r.scale_px_per_cm, r.min_size_cm, r.sensitivity, params=r.seg)
                 self.results[r.path] = res
                 r.summary = res.summary()
                 r.analysed_with = self.current_parameters(r)
@@ -524,7 +714,7 @@ class ImagesTab(W.QWidget):
                          f"Dmax={d.get('dmax_cm', float('nan')):.1f} cm  RR n={d.get('rr_n', float('nan')):.2f}")
         for r in self.records:
             tag = "" if r.path in self.results else " (not analysed)"
-            if r.path in self.results and r.analysed_with and r.analysed_with != self.current_parameters(r):
+            if r.path in self.results and r.analysed_with and {"roi": [], **r.analysed_with} != self.current_parameters(r):
                 tag = " (parameters changed since the analysis: analyse again)"
             lines.append(f"{r.name} [{r.date}]{tag}")
             if r.summary:
@@ -544,6 +734,105 @@ class ImagesTab(W.QWidget):
         if folder:
             self.export(folder)
 
+    def save_photos_dialog(self):
+        if not any(self.results.get(r.path) is not None and self.results[r.path].overlay is not None for r in self.records):
+            W.QMessageBox.information(self, "Save all photos", "Analyse the photos first (they need a scale).")
+            return
+        folder = W.QFileDialog.getExistingDirectory(self, "Folder for the photos", str(Path.cwd()))
+        if not folder:
+            return
+        files = self.export_photos(folder)
+        W.QMessageBox.information(self, "Save all photos", f"{len(files)} images saved in\n{folder}")
+
+    def report_dialog(self):
+        if not any(r.path in self.results for r in self.records):
+            W.QMessageBox.information(self, "Report", "Analyse the photos first (they need a scale).")
+            return
+        f, flt = W.QFileDialog.getSaveFileName(self, "Photo analysis report", str(Path.cwd() / "photo_report.html"),
+                                               "HTML report (*.html);;PDF report (*.pdf);;Word report (*.docx)")
+        if f:
+            if "docx" in flt.lower() and not f.lower().endswith(".docx"):
+                f += ".docx"
+            elif "pdf" in flt.lower() and not f.lower().endswith(".pdf"):
+                f += ".pdf"
+            try:
+                self.write_report(f)
+            except ImportError as e:
+                W.QMessageBox.warning(self, "Report", f"The Word report needs the python-docx package ({e}).\n\n"
+                                      "Install it with:  pip install python-docx\n"
+                                      "(or choose the HTML or PDF format, which need nothing more).")
+                return
+            except Exception as e:                       # never lose the session because of a report
+                W.QMessageBox.warning(self, "Report", f"The report could not be written:\n{e}")
+                return
+            W.QMessageBox.information(self, "Report", f"Report saved:\n{f}")
+
+    def write_report(self, path) -> Path:
+        """HTML (self-contained), PDF or Word, by the extension of path."""
+        from .. import photoreport as pr
+        path = Path(path)
+        predicted = None
+        design = self.design_provider()
+        if design is not None:
+            x = np.geomspace(0.5, 150, 300)
+            curve = stope_passing_curve(design, x)
+            if curve is not None:
+                predicted = (x, curve)
+        if path.suffix.lower() == ".docx":
+            return pr.write_docx(path, self.records, self.results, self._image, predicted, self.log_x.isChecked())
+        body, imgs = pr.build(self.records, self.results, self._image, predicted, self.log_x.isChecked(),
+                              img_w=640 if path.suffix.lower() == ".pdf" else 760)
+        if path.suffix.lower() != ".pdf":
+            return pr.write_html(path if path.suffix else path.with_suffix(".html"), body, imgs)
+        doc = G.QTextDocument()
+        doc.setDefaultStyleSheet("body{font-family:Arial;font-size:9pt} h1{color:#16304f} h2{color:#16304f} "
+                                 "th{background-color:#eef2f7} table{border-collapse:collapse}")
+        for name, data in imgs.items():
+            im = G.QImage(); im.loadFromData(data)
+            doc.addResource(G.QTextDocument.ImageResource, C.QUrl(name), im)
+        doc.setHtml(body)
+        wr = G.QPdfWriter(str(path))
+        wr.setPageSize(G.QPageSize(G.QPageSize.A4))
+        wr.setPageMargins(C.QMarginsF(15, 15, 15, 15), G.QPageLayout.Millimeter)
+        wr.setResolution(96)
+        doc.setPageSize(C.QSizeF(wr.width(), wr.height()))
+        doc.print_(wr)
+        return path
+
+    def export_photos(self, folder) -> list[Path]:
+        """For each analysed photo: *_fragments.png (outlined fragments + scale bar, the analysed area),
+        *_analysed_area.png (the same area without outlines) and, when an area of interest was used,
+        *_overview.png (whole photo with the area outlined).  Returns the files written."""
+        import cv2
+        folder = Path(folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        out = []
+        for r in self.records:
+            res = self.results.get(r.path)
+            if res is None or res.overlay is None:
+                continue
+            stem = Path(r.path).stem
+            q = folder / f"photo_{stem}_fragments.png"
+            cv2.imwrite(str(q), ia.add_scale_bar(res.overlay, res.overlay_px_per_cm))
+            out.append(q)
+            raw = self._image(r)
+            roi = r.analysed_with.get("roi") or []
+            if raw is not None:
+                part, _ = ia.crop_roi(raw, roi)
+                q = folder / f"photo_{stem}_analysed_area.png"
+                oh, ow = res.overlay.shape[:2]
+                cv2.imwrite(str(q), ia.add_scale_bar(cv2.resize(part, (ow, oh), interpolation=cv2.INTER_AREA),
+                                                      res.overlay_px_per_cm))
+                out.append(q)
+                if len(roi) == 4:
+                    ov = raw.copy()
+                    x0, y0, x1, y1 = [int(v) for v in roi]
+                    cv2.rectangle(ov, (x0, y0), (x1, y1), (255, 229, 0), max(3, raw.shape[1] // 250))
+                    q = folder / f"photo_{stem}_overview.png"
+                    cv2.imwrite(str(q), ia.add_scale_bar(ov, r.scale_px_per_cm or 0))
+                    out.append(q)
+        return out
+
     def export(self, folder) -> list[Path]:
         folder = Path(folder)
         folder.mkdir(parents=True, exist_ok=True)
@@ -558,13 +847,7 @@ class ImagesTab(W.QWidget):
                 w.writerow([r.path, r.date, r.location, r.notes, r.scale_px_per_cm, r.min_size_cm, r.sensitivity, json.dumps(r.seg), json.dumps(r.analysed_with),
                             *[r.summary.get(k, "") for k in keys]])
         out.append(p)
-        for r in self.records:
-            res = self.results.get(r.path)
-            if res is not None and res.overlay is not None:
-                import cv2
-                q = folder / f"photo_{Path(r.path).stem}_fragments.png"
-                cv2.imwrite(str(q), res.overlay)
-                out.append(q)
+        out += self.export_photos(folder)
         pooled = self.pooled()
         if pooled:
             d, pa = ia.volume_weighted_curve(pooled["sizes_cm"])

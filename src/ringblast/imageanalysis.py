@@ -36,6 +36,7 @@ class FragmentResult:
     rr_n: float = float("nan")                # Rosin-Rammler uniformity (fitted)
     rr_xc_cm: float = float("nan")            # Rosin-Rammler characteristic size (fitted)
     overlay: Optional[np.ndarray] = None      # BGR image with the detected fragments drawn
+    overlay_px_per_cm: float = float("nan")   # scale of the overlay image (for the scale bar)
 
     @property
     def n_fragments(self) -> int:
@@ -218,12 +219,62 @@ def analyse_image(img_bgr: np.ndarray, px_per_cm: float, min_size_cm: float = 3.
         cnts = [np.round(c * f).astype(np.int32) for c in cnts]
         cv2.drawContours(overlay, cnts, -1, (0, 255, 255), 1)
     sizes_arr = np.asarray(sizes, float)
-    res = FragmentResult(sizes_arr, scale, h * w / scale ** 2, 1.0 - covered / (h * w), overlay=overlay)
+    res = FragmentResult(sizes_arr, scale, h * w / scale ** 2, 1.0 - covered / (h * w), overlay=overlay,
+                         overlay_px_per_cm=px_per_cm * ks)
     if sizes_arr.size:
         d = describe(sizes_arr)
         res.percentiles_cm, res.dmax_cm, res.rr_n, res.rr_xc_cm = (d["percentiles_cm"], d["dmax_cm"],
                                                                     d["rr_n"], d["rr_xc_cm"])
     return res
+
+
+def crop_roi(img: np.ndarray, roi) -> tuple[np.ndarray, tuple[int, int]]:
+    """Part of the photo inside the area of interest roi = [x0, y0, x1, y1] (pixels of the full photo).
+    Returns (crop, (x0, y0)); an empty or invalid roi gives the whole photo."""
+    h, w = img.shape[:2]
+    if not roi or len(roi) != 4:
+        return img, (0, 0)
+    x0, x1 = sorted((int(round(roi[0])), int(round(roi[2]))))
+    y0, y1 = sorted((int(round(roi[1])), int(round(roi[3]))))
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return img, (0, 0)
+    return img[y0:y1, x0:x1], (x0, y0)
+
+
+def compose_roi(full: np.ndarray, roi, part: np.ndarray) -> np.ndarray:
+    """Full photo darkened outside the area of interest, with `part` (a result for the ROI) pasted inside."""
+    import cv2
+    crop, (x0, y0) = crop_roi(full, roi)
+    if crop is full:
+        return cv2.resize(part, (full.shape[1], full.shape[0])) if part.shape[:2] != full.shape[:2] else part
+    out = (full * 0.35).astype(np.uint8)
+    out[y0:y0 + crop.shape[0], x0:x0 + crop.shape[1]] = cv2.resize(part, (crop.shape[1], crop.shape[0]))
+    return out
+
+
+def add_scale_bar(img: np.ndarray, px_per_cm: float) -> np.ndarray:
+    """Copy of img with a scale bar (a round length of 1 cm ... 10 m, about a fifth of the width) at the
+    bottom left, for figures in papers and reports."""
+    import cv2
+    out = img.copy()
+    h, w = out.shape[:2]
+    if not (px_per_cm and px_per_cm > 0):
+        return out
+    target = 0.2 * w / px_per_cm
+    nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000]
+    length = min(nice, key=lambda v: abs(v - target))
+    bar = int(round(length * px_per_cm))
+    th = max(4, h // 150)
+    m = max(10, w // 50)
+    x0, y1 = m, h - m
+    label = f"{length} cm" if length < 100 else f"{length / 100:g} m"
+    fs = max(0.5, w / 1400)
+    (tw, tht), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, fs, max(1, int(fs * 2)))
+    cv2.rectangle(out, (x0 - 6, y1 - th - tht - 18), (x0 + max(bar, tw) + 6, y1 + 6), (0, 0, 0), -1)
+    cv2.rectangle(out, (x0, y1 - th), (x0 + bar, y1), (255, 255, 255), -1)
+    cv2.putText(out, label, (x0, y1 - th - 8), cv2.FONT_HERSHEY_SIMPLEX, fs, (255, 255, 255), max(1, int(fs * 2)), cv2.LINE_AA)
+    return out
 
 
 def from_sizes(sizes_cm, px_per_cm: float = 0.0, unresolved: float = float("nan")) -> FragmentResult:

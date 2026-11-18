@@ -9,7 +9,7 @@ from pathlib import Path
 from . import db
 from .burden import METHODS, BurdenInputs, compare_methods
 from .design import run_design, sensitivity
-from .export import export_dxf, export_hole_csv, export_json, export_report_html
+from .export import export_dxf, export_hole_csv, export_json, export_report_docx, export_report_html
 from .geometry import mean_hole_length
 from .models import DesignParams, StopeGeometry
 
@@ -79,6 +79,10 @@ def main(argv=None) -> int:
     export_hole_csv(out.with_suffix(".holes.csv"), res, stope, params)
     export_json(out.with_suffix(".json"), res, stope, rock, ex, params)
     export_report_html(out.with_suffix(".html"), res, stope, rock, ex, params)
+    try:
+        export_report_docx(out.with_suffix(".docx"), res, stope, rock, ex, params)
+    except ImportError:
+        pass                                              # python-docx not installed (pip install python-docx)
     print(f"B={res.burden_m:.2f} m  S={res.spacing_m:.2f} m  holes={res.n_holes}  "
           f"drilled={res.drilled_length_m:.1f} m  charge={res.charge_kg:.0f} kg  "
           f"PF={res.powder_factor:.2f} kg/m3  mean size={res.weighted_mean_size_cm:.1f} cm")

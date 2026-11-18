@@ -141,7 +141,7 @@ def main() -> int:
     app.tips.install(qapp)
     win = app.MainWindow()
     splash.step(1.0, "Ready")
-    win.show()
+    win.showMaximized()                      # fills the screen: nothing can run beyond its edges
     # keep the splash visible for a moment even on a fast start, so it does not just flash
     while time.time() - t0 < 1.2:
         W.QApplication.processEvents()

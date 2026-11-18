@@ -9,7 +9,7 @@ from typing import Iterable
 from .burden import BurdenInputs, compute_burden
 from .charging import decharge
 from .fragmentation import analyse_zones, charge_mass_kg, weighted_mean_size
-from .geometry import build_ring, level_specs, mean_hole_length
+from .geometry import build_ring, gap_area_shares, level_specs, mean_hole_length
 from .models import (DesignParams, DesignResult, Explosive, LevelResult, Rock, StopeGeometry)
 
 DEFAULT_ROCK_FACTOR = 10.0
@@ -59,8 +59,13 @@ def run_design(rock: Rock, expl: Explosive, stope: StopeGeometry, p: DesignParam
     if a is None:
         a = DEFAULT_ROCK_FACTOR
         warnings.append(f"rock factor A not defined for '{rock.name}': default {a:g} used")
-    levels = [run_level(spec, burden, spacing, rock, expl, p, a, with_fragmentation)
-              for spec in level_specs(stope, burden)]
+    specs = level_specs(stope, burden)
+    levels = [run_level(spec, burden, spacing, rock, expl, p, a, with_fragmentation) for spec in specs]
+    # The uncharged strips between the blocks are part of the stope and are broken by the neighbouring blocks:
+    # their volume is shared between the adjacent levels, so the total volume stays that of the whole stope.
+    for lv, area in zip(levels, gap_area_shares(stope, burden, specs)):
+        lv.volume_m3 += area * burden
+        lv.powder_factor = lv.charge_kg / lv.volume_m3 if lv.volume_m3 else 0.0
     return DesignResult(burden, spacing, levels, warnings)
 
 

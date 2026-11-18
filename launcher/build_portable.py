@@ -33,7 +33,8 @@ def main() -> int:
     for d in ("build", "dist"):
         shutil.rmtree(ROOT / d, ignore_errors=True)
     cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--name", NAME,
-           "--paths", "src", "--collect-submodules", "ringblast"]
+           "--paths", "src", "--collect-submodules", "ringblast",
+           "--collect-data", "docx"]
     icon = ROOT / "launcher" / "ringblast.ico"
     if sys.platform == "win32" and icon.exists():
         cmd += ["--icon", str(icon)]

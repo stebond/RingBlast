@@ -7,14 +7,14 @@ from pathlib import Path
 
 from PySide6 import QtCore as C
 from PySide6 import QtWidgets as W
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as Canvas
+from .zoomcanvas import ZoomCanvas as Canvas
 from matplotlib.figure import Figure
 
 from . import tips
 from .. import db, paths, plotstyle, project
 from ..burden import METHODS
 from ..design import run_design
-from ..export import (export_dxf, export_hole_csv, export_json, export_report_html,
+from ..export import (export_dxf, export_hole_csv, export_json, export_report_docx, export_report_html,
                       plot_fragmentation, plot_pattern, plot_stope_layout)
 from ..models import DesignParams, MissingInput, StopeGeometry
 from ..project import DEFAULT_INPUTS as D
@@ -59,6 +59,7 @@ class MainWindow(W.QMainWindow):
         self.ndrifts = W.QComboBox(); self.ndrifts.addItems(["1", "2"])
         self.twin = W.QComboBox(); self.twin.addItem("at the walls (sides)", "sides")
         self.twin.addItem("centre of each half", "halves")
+        self.twin.addItem("set the gap between the drifts", "gap")
         self.show_zones = W.QCheckBox("Show fragmentation zones (green circles)"); self.show_zones.setChecked(True)
         self.show_zones.toggled.connect(lambda *_: self._show_plots())
         self.log_x = W.QCheckBox("Logarithmic size axis (fragmentation plot)"); self.log_x.setChecked(True)
@@ -73,7 +74,8 @@ class MainWindow(W.QMainWindow):
             "d": _spin(D["d"], 30, 300, 1, 0), "sb": _spin(D["sb"], 0.8, 2.0, 0.05),
             "f": _spin(D["f"], 0.3, 1.0, 0.05), "c": _spin(D["c"], 0.2, 1.5, 0.05),
             "A": _spin(D["A"], 0.5, 20, 0.5), "zone": _spin(D["zone"], 1, 20, 0.5),
-            "manual": _spin(D["manual"], 0, 20, 0.1), "wd": _spin(D["wd"], 0, 20, 0.5),
+            "manual": _spin(D["manual"], 0, 20, 0.1), "wd": _spin(D["wd"], -10, 20, 0.5), "gap": _spin(D["gap"], 0, 200, 0.5),
+            "vg": _spin(D["vg"], 0, 50, 0.5), "hg": _spin(D["hg"], 0, 100, 0.5),
             "dtop": _spin(D["dtop"], 0, 200, 0.5), "arch": _spin(D["arch"], 0, 100, 0.5),
             "bcl": _spin(D["bcl"], 0.1, 5, 0.1),
         }
@@ -84,18 +86,22 @@ class MainWindow(W.QMainWindow):
                          ("One drift: horizontal position", self.pos),
                          ("Two drifts: positions (symmetric)", self.twin),
                          ("Side drift: distance from wall (m)", self.w["wd"]),
+                         ("Two drifts: gap between them (m)", self.w["gap"]),
                          ("Sublevel drift position (vertical)", self.vpos),
                          ("Drift roof: distance from block top (m)", self.w["dtop"]),
                          ("Roof arch rise (m, 0 = flat)", self.w["arch"]), ("Drift width (m)", self.w["dw"]),
-                         ("Drift height (m)", self.w["dh"]), ("Hopper wall angle (deg)", self.w["angle"])]:
+                         ("Drift height (m)", self.w["dh"]), ("Hopper wall angle (deg)", self.w["angle"]),
+                         ("Gap between sublevel blocks (m, vertical)", self.w["vg"]),
+                         ("Two drifts: gap between left and right block (m)", self.w["hg"])]:
             geometry.addRow(label, w)
         box1 = W.QGroupBox("Stope geometry"); box1.setLayout(geometry)
         self.layout_status = W.QLabel(); self.layout_status.setWordWrap(True)
-        self.layout_fig = Figure(figsize=(4.6, 6.4))
+        self.layout_fig = Figure(figsize=(3.6, 5.0))
         self.layout_canvas = Canvas(self.layout_fig)
+        self.layout_canvas.setMinimumSize(260, 300)        # the drawing shrinks with the window instead of forcing a scroll bar
         lleft = W.QWidget(); lv = W.QVBoxLayout(lleft)
         lv.addWidget(box1); lv.addWidget(self.layout_status); lv.addStretch(1)
-        layout_tab = W.QSplitter(); layout_tab.addWidget(lleft); layout_tab.addWidget(self.layout_canvas)
+        layout_tab = W.QSplitter(); layout_tab.addWidget(_scrolled(lleft)); layout_tab.addWidget(self.layout_canvas)
         layout_tab.setStretchFactor(1, 3)
 
         design = W.QFormLayout()
@@ -118,11 +124,14 @@ class MainWindow(W.QMainWindow):
         dleft = W.QWidget(); dv = W.QVBoxLayout(dleft)
         dv.addWidget(self.geom_label); dv.addWidget(box2); dv.addStretch(1)
 
-        self.plots = W.QTabWidget()                       # Pattern / Fragmentation after "Run design"
+        self.plots = W.QTabWidget()                       # Layout before, Pattern / Fragmentation after "Run design"
+        self.design_fig = Figure(figsize=(3.6, 5.0))
+        self.design_canvas = Canvas(self.design_fig)       # the stope geometry stays visible next to the blast parameters
+        self.design_canvas.setMinimumSize(260, 300)
         self.summary = W.QPlainTextEdit(readOnly=True)
         right = W.QSplitter(C.Qt.Vertical); right.addWidget(self.plots); right.addWidget(self.summary)
         right.setStretchFactor(0, 3)
-        design_tab = W.QSplitter(); design_tab.addWidget(dleft); design_tab.addWidget(right)
+        design_tab = W.QSplitter(); design_tab.addWidget(_scrolled(dleft)); design_tab.addWidget(right)
         design_tab.setStretchFactor(1, 3)
 
         # ---------------------------------------------------------- other tabs
@@ -137,7 +146,7 @@ class MainWindow(W.QMainWindow):
         self.tabs = W.QTabWidget()
         for wdg, title in [(layout_tab, "Stope layout"), (design_tab, "Blast design"), (self.rock_tab, "Rock properties"),
                            (self.expl_tab, "Explosives"), (self.images_tab, "Muck-pile photos"),
-                           (self.settings_tab, "Settings")]:
+                           (_scrolled(self.settings_tab), "Settings")]:
             self.tabs.addTab(wdg, title)
 
         # ---------------------------------------------------------- project bar
@@ -156,8 +165,12 @@ class MainWindow(W.QMainWindow):
             bar.addWidget(b)
         central = W.QWidget(); cv = W.QVBoxLayout(central)
         cv.addLayout(bar); cv.addWidget(self.tabs, 1)
-        self.setCentralWidget(central)
-        self.resize(1300, 860)
+        # The content needs about 930 x 870 px. On a smaller screen it scrolls instead of running beyond
+        # the screen edges (the window can then be made as small as the screen allows).
+        scroll = W.QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(W.QFrame.NoFrame)
+        scroll.setWidget(central)
+        self.setCentralWidget(scroll)
+        self.fit_to_screen()
 
         # ---------------------------------------------------------- tooltips
         w = self.w
@@ -181,7 +194,15 @@ class MainWindow(W.QMainWindow):
             (w["n_sub"], "Number of sublevel drifts above the base. Each fires a rectangular block with its own ring."),
             (w["dw"], "Width of the drift section (m)."), (w["dh"], "Height of the drift section (m)."),
             (w["angle"], "Inclination of the sloping sides of the base trapezoid (hopper walls), in degrees."),
-            (w["wd"], "Side drifts only: gap between the drift and the stope wall (m). 0 = flush with the wall."),
+            (w["vg"], "Vertical clear distance between the charged block of one sublevel and the block of the next one (m), "
+                      "so that the charges do not touch. The strip is not charged and is drawn grey."),
+            (w["hg"], "Two drifts per sublevel: clear distance between the left and the right block along the centre line (m). "
+                      "The strip is not charged and is drawn grey."),
+            (w["gap"], "Two drifts, option 'set the gap': clear distance between the two drift rectangles (m); the drifts are placed "
+                       "symmetrically about the centre line. The largest gap puts the drift axes on the walls."),
+            (w["wd"], "Side drifts: gap between the drift and the stope wall (m). 0 = flush with the wall. For two drifts at the "
+                      "sides the value can be negative: the drifts move towards the outside, down to minus half the drift width "
+                      "(drift axis on the wall of the stope)."),
             (w["d"], "Diameter of the drill holes (mm)."),
             (w["sb"], "Spacing-to-burden ratio S/B. The actual spacing is adjusted so that the ring closes exactly on the corners."),
             (w["f"], "Fixation factor f of the Langefors-Kihlstrom formula (about 0.65 for inclined / fan holes)."),
@@ -210,18 +231,32 @@ class MainWindow(W.QMainWindow):
         C.QTimer.singleShot(2500, lambda: self._updater.start(manual=False))   # silent check a moment after start-up
 
         # ---------------------------------------------------------- wiring
-        for w in list(self.w.values())[:5] + [self.w["angle"], self.w["wd"], self.w["dtop"], self.w["arch"]]:
+        for w in list(self.w.values())[:5] + [self.w["angle"], self.w["wd"], self.w["gap"], self.w["vg"], self.w["hg"], self.w["dtop"], self.w["arch"]]:
             w.valueChanged.connect(self.update_layout)
         self.pos.currentIndexChanged.connect(self.update_layout)
         self.vpos.currentIndexChanged.connect(self.update_layout)
         self.ndrifts.currentIndexChanged.connect(self.update_layout)
         self.twin.currentIndexChanged.connect(self.update_layout)
+        self.twin.currentIndexChanged.connect(self._drift_controls)
         self.ndrifts.currentIndexChanged.connect(self._drift_controls)
         self.vpos.currentIndexChanged.connect(lambda *_: self.w["dtop"].setEnabled(self.vpos.currentText() == "top"))
         self.base.toggled.connect(self.update_layout)
         self.apply_inputs(D, redraw=False)
         self.reload_databases(keep=False)
         self.update_layout()
+
+    # ================================================================== window size
+    def fit_to_screen(self, width: int = 1300, height: int = 860) -> None:
+        """Window size that always fits the screen it is on (the parts of the window can no longer
+        run beyond the screen edges); centred on that screen."""
+        scr = (self.screen() or W.QApplication.primaryScreen())
+        if scr is None:
+            self.resize(width, height)
+            return
+        a = scr.availableGeometry()
+        w, h = min(width, int(a.width() * 0.96)), min(height, int(a.height() * 0.94))
+        self.resize(w, h)
+        self.move(a.x() + (a.width() - w) // 2, a.y() + (a.height() - h) // 2)
 
     # ================================================================== help
     def show_manual(self):
@@ -379,7 +414,8 @@ class MainWindow(W.QMainWindow):
                               drift_position=self.pos.currentText(),
                               drift_wall_distance_m=w["wd"].value(),
                               drifts_per_sublevel=int(self.ndrifts.currentText()),
-                              twin_position=self.twin.currentData(),
+                              twin_position=self.twin.currentData(), twin_gap_m=w["gap"].value(),
+                              sublevel_gap_m=w["vg"].value(), twin_block_gap_m=w["hg"].value(),
                               drift_vertical=self.vpos.currentText(), drift_top_distance_m=w["dtop"].value(),
                               roof_arch_rise_m=w["arch"].value(),
                               base_drift=self.base.isChecked())
@@ -400,6 +436,9 @@ class MainWindow(W.QMainWindow):
         two = self.ndrifts.currentText() == "2"
         self.pos.setEnabled(not two)
         self.twin.setEnabled(two)
+        self.w["gap"].setEnabled(two and self.twin.currentData() == "gap")
+        self.w["wd"].setEnabled(not two or self.twin.currentData() == "sides")
+        self.w["hg"].setEnabled(two)
 
     def _draw_layout(self):
         _, _, stope, _ = self._inputs()
@@ -408,12 +447,15 @@ class MainWindow(W.QMainWindow):
         level_specs(stope, 0.0)
         plot_stope_layout(stope, self.layout_fig)
         self.layout_canvas.draw_idle()
+        plot_stope_layout(stope, self.design_fig)
+        self.design_canvas.draw_idle()
 
     def update_layout(self):
         """Redraw the stope from the geometry inputs only (no blast calculation)."""
         self.result = None
         self.btn_export.setEnabled(False)
         self.plots.clear()
+        self.plots.addTab(self.design_canvas, "Layout")
         try:
             self._draw_layout()
             self.run_btn.setEnabled(True)
@@ -427,6 +469,8 @@ class MainWindow(W.QMainWindow):
         except ValueError as e:
             self.layout_fig.clear()
             self.layout_canvas.draw_idle()
+            self.design_fig.clear()
+            self.design_canvas.draw_idle()
             self.run_btn.setEnabled(False)
             self.layout_status.setText(f"Layout not valid: {e}")
             self.geom_label.setText("The stope layout is not valid: fix it in the Stope layout tab.")
@@ -457,6 +501,9 @@ class MainWindow(W.QMainWindow):
         self.level.blockSignals(True)
         self.level.clear()
         self.level.addItem("All levels", None)
+        for k in sorted({lv.spec.sublevel for lv in r.levels if lv.spec.side}):          # both drifts of a sublevel together
+            members = tuple(lv.spec.index for lv in r.levels if lv.spec.side and lv.spec.sublevel == k)
+            self.level.addItem(f"Sublevel {k} (left + right)", members)
         for lv in r.levels:
             self.level.addItem(lv.spec.name, lv.spec.index)
         self.level.blockSignals(False)
@@ -498,11 +545,28 @@ class MainWindow(W.QMainWindow):
         export_json(out.with_suffix(".json"), self.result, stope, rock, ex, p)
         export_report_html(out.with_suffix(".html"), self.result, stope, rock, ex, p,
                            self.proj_name.text().strip() or "RingBlast report")
+        word = ""
+        try:
+            export_report_docx(out.with_suffix(".docx"), self.result, stope, rock, ex, p,
+                               self.proj_name.text().strip() or "RingBlast report")
+            word = ", Word report"
+        except ImportError:
+            pass                                          # python-docx not installed: the other files are still written
         W.QMessageBox.information(self, "Export", f"Files saved in {folder}\n"
-                                  "(DXF for AutoCAD, hole CSV, JSON, HTML report)")
+                                  f"(DXF for AutoCAD, hole CSV, JSON, HTML report{word})")
         if sys.platform == "win32":
             import os
             os.startfile(folder)
+
+
+def _scrolled(widget: W.QWidget) -> W.QScrollArea:
+    """Input panel in its own scroll area: a tall panel scrolls by itself and does not force the whole window
+    (and the drawing next to it) to become taller than the screen."""
+    sa = W.QScrollArea(); sa.setWidgetResizable(True); sa.setFrameShape(W.QFrame.NoFrame)
+    sa.setHorizontalScrollBarPolicy(C.Qt.ScrollBarAlwaysOff)
+    sa.setWidget(widget)
+    sa.setMinimumWidth(widget.sizeHint().width() + 24)       # room for the vertical scroll bar
+    return sa
 
 
 def app_icon():

@@ -468,7 +468,7 @@ def test_gui_two_drifts_and_zone_checkbox(win, tmp_path):
     assert not win.pos.isEnabled() and win.twin.isEnabled()
     win.twin.setCurrentIndex(1)
     win.run()
-    assert [l.spec.side for l in win.result.levels][:2] == ["left", "right"] and win.level.count() == 6
+    assert [l.spec.side for l in win.result.levels][:2] == ["left", "right"] and win.level.count() == 8
     n_on = len(win.plots.widget(0).figure.axes[0].lines)
     win.show_zones.setChecked(False)
     assert len(win.plots.widget(0).figure.axes[0].lines) < n_on
@@ -724,3 +724,364 @@ def test_update_dialog_flow(monkeypatch, tmp_path):
     win._updater.start(manual=False)                      # disabled by the environment: nothing starts
     assert win._updater._worker is None
     assert win.menuBar().findChildren(W.QMenu)[-1].actions()[2].text().startswith("Check for updates")
+
+
+# ---------------------------------------------------------------- photo zoom and window size
+def test_photo_zoom_pan_and_reset():
+    import numpy as np
+    from PySide6 import QtCore as C
+    from PySide6 import QtGui as G
+    from PySide6 import QtWidgets as W
+    from ringblast.gui.images_tab import ImageView
+    W.QApplication.instance() or W.QApplication([])
+    v = ImageView(); v.resize(400, 300)
+    v.set_image(np.zeros((300, 400, 3), np.uint8))
+    assert v.zoom_factor() == 1.0
+    r0, k0 = v._rect()
+
+    def wheel(pos, dy):
+        ev = G.QWheelEvent(C.QPointF(pos), C.QPointF(pos), C.QPoint(0, 0), C.QPoint(0, dy),
+                           C.Qt.NoButton, C.Qt.NoModifier, C.Qt.NoScrollPhase, False)
+        v.wheelEvent(ev)
+    cur = C.QPointF(100, 80)
+    pt = ((cur.x() - r0.x()) / k0, (cur.y() - r0.y()) / k0)           # photo point under the cursor
+    wheel(cur, 240)                                                    # two wheel steps forward: zoom in
+    assert v.zoom_factor() > 1.5
+    r, k = v._rect()
+    assert abs((cur.x() - r.x()) / k - pt[0]) < 1e-6 and abs((cur.y() - r.y()) / k - pt[1]) < 1e-6
+    wheel(cur, 120 * 40)                                               # the zoom is limited
+    assert v.zoom_factor() == v.MAX_ZOOM
+    r, k = v._rect()                                                   # the photo always covers the view
+    assert r.x() <= 1e-6 and r.right() >= v.width() - 1e-6 and r.y() <= 1e-6 and r.bottom() >= v.height() - 1e-6
+    wheel(cur, -120 * 80)                                              # back out: whole photo again
+    assert v.zoom_factor() == 1.0
+    wheel(cur, 120)
+    v.mouseDoubleClickEvent(None)
+    assert v.zoom_factor() == 1.0
+    wheel(cur, 120)
+    v.set_image(np.zeros((300, 400, 3), np.uint8))                     # same photo size (e.g. other view): zoom kept
+    assert v.zoom_factor() > 1.0
+    v.set_image(np.zeros((200, 200, 3), np.uint8))                     # another photo: whole picture
+    assert v.zoom_factor() == 1.0
+    v.grab()                                                           # painting works when zoomed
+
+
+def test_window_fits_screen_and_scrolls(monkeypatch):
+    from PySide6 import QtWidgets as W
+    W.QApplication.instance() or W.QApplication([])
+    from ringblast.gui import app
+    win = app.MainWindow()
+    a = win.screen().availableGeometry()
+    assert win.width() <= a.width() and win.height() <= a.height()
+    assert win.minimumSizeHint().width() < 400 and win.minimumSizeHint().height() < 400   # content scrolls, not overflows
+    win.fit_to_screen(5000, 5000)
+    assert win.width() <= a.width() and win.height() <= a.height()
+
+
+# ---------------------------------------------------------------- area of interest and photo export
+def test_roi_crop_compose_and_scale_bar():
+    import numpy as np
+    from ringblast import imageanalysis as ia
+    img = np.full((300, 400, 3), 120, np.uint8)
+    crop, off = ia.crop_roi(img, [50, 40, 250, 200])
+    assert crop.shape[:2] == (160, 200) and off == (50, 40)
+    assert ia.crop_roi(img, [])[0] is img and ia.crop_roi(img, [10, 10, 15, 15])[0] is img   # empty / tiny: whole photo
+    assert ia.crop_roi(img, [250, 200, 50, 40])[0].shape[:2] == (160, 200)                     # corners in any order
+    part = np.full((80, 100, 3), 255, np.uint8)                                                # result at lower resolution
+    out = ia.compose_roi(img, [50, 40, 250, 200], part)
+    assert out.shape == img.shape and out[100, 100, 0] == 255 and out[5, 5, 0] < 60           # darkened outside
+    bar = ia.add_scale_bar(out, 4.0)
+    assert bar.shape == out.shape and (bar != out).any() and (ia.add_scale_bar(out, 0) == out).all()
+
+
+def test_roi_analysis_and_export_of_photos(win, tmp_path):
+    import cv2
+    import numpy as np
+    img, _ = make_photo()
+    big = np.zeros((img.shape[0] + 300, img.shape[1] + 200, 3), np.uint8)       # drift walls around the pile
+    big[150:150 + img.shape[0], 100:100 + img.shape[1]] = img
+    f = tmp_path / "wide.png"; cv2.imwrite(str(f), big)
+    tab = win.images_tab
+    tab.add_files([str(f)])
+    tab.set_scale_points((100, 100), (100 + 60 * SCALE, 100), 60.0)
+    tab.listw.setCurrentRow(0)
+    got = []
+    tab.view.roiPicked.connect(got.append)
+    tab.begin_roi()
+    assert tab.view.roi_mode
+    tab._roi_picked([100, 150, 100 + img.shape[1], 150 + img.shape[0]])         # as if dragged by the user
+    r = tab.records[0]
+    assert r.roi == [100, 150, 1300, 1050] and "1200 x 900" in tab.roi_label.text()
+    tab.analyse_selected()
+    res = tab.results[r.path]
+    assert res.n_fragments > 5 and res.overlay.shape[0] <= big.shape[0]
+    assert abs(res.image_area_cm2 * 1.0 - 1200 * 900 / SCALE ** 2) / (1200 * 900 / SCALE ** 2) < 0.1   # area of the ROI only
+    assert r.analysed_with["roi"] == r.roi
+    tab.view_mode.setCurrentIndex(0); tab._show_image()                          # composite with outlined ROI renders
+    tab.view_mode.setCurrentIndex(3); tab._show_image()
+    files = tab.export_photos(tmp_path / "figs")
+    names = sorted(p.name for p in files)
+    assert names == ["photo_wide_analysed_area.png", "photo_wide_fragments.png", "photo_wide_overview.png"]
+    assert all(cv2.imread(str(p)) is not None for p in files)
+    tab.clear_roi()
+    assert r.roi == [] and "whole" in tab.roi_label.text()
+    assert "roi" in type(r).__dataclass_fields__
+    # saved and reloaded in a project
+    from ringblast import project
+    r.roi = [10, 20, 300, 400]
+    p = tmp_path / "t.ringblast"
+    project.save_project(p, "t", "", dict(project.DEFAULT_INPUTS), [r], {})
+    assert project.load_project(p)["images"][0].roi == [10, 20, 300, 400]
+
+
+def test_photo_report_html_and_pdf(win, tmp_path):
+    import cv2
+    img, _ = make_photo()
+    paths = []
+    for i, seed in enumerate((3, 4)):
+        im, _ = make_photo(seed=seed)
+        f = tmp_path / f"ph{i}.png"; cv2.imwrite(str(f), im); paths.append(str(f))
+    tab = win.images_tab
+    tab.add_files(paths)
+    for i in range(2):
+        tab.listw.setCurrentRow(i)
+        tab.set_scale_points((100, 100), (100 + 60 * SCALE, 100), 60.0)
+    tab.listw.setCurrentRow(0)
+    tab._roi_picked([50, 50, 1100, 800])
+    tab.seg_w["contrast"].setValue(3.0)
+    tab.copy_segmentation_to_all()                       # same settings for every photo
+    tab.analyse_all()
+    out = tab.write_report(tmp_path / "r.html")
+    h = out.read_text(encoding="utf-8")
+    assert h.count("data:image/png;base64") >= 5 and "same for all photos" in h
+    assert "ph0.png" in h and "ph1.png" in h and "All photos together" in h and "1050 x 750 px" in h
+    dx = tab.write_report(tmp_path / "r.docx")
+    import docx as _d
+    d = _d.Document(str(dx))
+    assert len(d.inline_shapes) >= 5 and len(d.tables) >= 4
+    assert "All photos together" in [p.text for p in d.paragraphs] and "1. ph0.png" in [p.text for p in d.paragraphs]
+    pdf = tab.write_report(tmp_path / "r.pdf")
+    assert pdf.read_bytes()[:4] == b"%PDF" and pdf.stat().st_size > 20000
+    tab.seg_w["contrast"].setValue(1.0)                  # different settings for one photo
+    tab.listw.setCurrentRow(1)
+    tab.seg_w["contrast"].setValue(4.5)
+    tab.analyse_all()
+    h2 = tab.write_report(tmp_path / "r2.html").read_text(encoding="utf-8")
+    assert "settings differ between photos" in h2 and "4.5" in h2
+
+
+# ---------------------------------------------------------------- twin drifts moved onto the walls; Word design report
+def _twin(dist, **kw):
+    from ringblast.models import StopeGeometry
+    return StopeGeometry(width=20, height=40, n_sublevels=2, drift_width=5, drift_height=5,
+                         drifts_per_sublevel=2, drift_wall_distance_m=dist, **kw)
+
+
+def test_twin_drifts_negative_wall_distance():
+    import pytest
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.geometry import level_specs
+    from ringblast.models import DesignParams, StopeGeometry
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    xs = {d: [round(s.centre[0], 3) for s in level_specs(_twin(d), 2.0)[:2]] for d in (0, -1, -2.5)}
+    assert xs[0] == [-7.5, 7.5] and xs[-1] == [-8.5, 8.5] and xs[-2.5] == [-10.0, 10.0]   # axis on the wall
+    for d in (0, -1, -2.5):                                          # the whole design runs, also with the axis on the wall
+        res = run_design(rock, ex, _twin(d), DesignParams())
+        assert res.n_holes > 0 and all(h.length > 0.5 for lv in res.levels for h in lv.ring.holes)
+    with pytest.raises(ValueError, match="cannot be below"):
+        _twin(-2.6).validate()                                        # beyond the wall
+    with pytest.raises(ValueError, match="negative"):
+        _twin(-1, twin_position="halves").validate()                  # only for two drifts at the sides
+    with pytest.raises(ValueError, match="negative"):
+        StopeGeometry(width=20, height=40, drift_wall_distance_m=-1, drift_position="left").validate()
+
+
+def test_word_design_report(tmp_path):
+    import docx
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.export import export_report_docx
+    from ringblast.models import DesignParams
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    s, p = _twin(-1), DesignParams()
+    out = export_report_docx(tmp_path / "d.docx", run_design(rock, ex, s, p), s, rock, ex, p, "Test design")
+    d = docx.Document(str(out))
+    texts = [x.text for x in d.paragraphs]
+    assert "Test design" in texts and "Results by level" in texts and "Sublevel 1 left" in texts
+    assert len(d.inline_shapes) >= 4 and len(d.tables) >= 5
+
+
+def test_gui_wall_distance_spin_accepts_negative(win):
+    w = win.w["wd"]
+    assert w.minimum() <= -2.5
+    win.ndrifts.setCurrentText("2")
+    w.setValue(-2.5)
+    win.update_layout()                                               # layout redraws without error
+
+
+def test_plots_zoom_with_the_wheel():
+    import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+    from matplotlib.figure import Figure
+    from PySide6 import QtWidgets as W
+    W.QApplication.instance() or W.QApplication([])
+    from ringblast.gui.zoomcanvas import ZoomCanvas
+    fig = Figure(figsize=(4, 3)); ax = fig.subplots()
+    ax.plot([1, 100], [0, 100]); ax.set_xscale("log"); ax.set_xlim(0.5, 300); ax.set_ylim(0, 100)
+    c = ZoomCanvas(fig); c.draw()
+    x0, y0 = ax.transData.transform((10, 50))
+
+    def scroll(step):
+        c.scroll_event_ev = MouseEvent("scroll_event", c, x0, y0, step=step)
+        c._scroll(c.scroll_event_ev)
+    scroll(3)
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    assert xl[1] / xl[0] < 300 / 0.5 and yl[1] - yl[0] < 100                      # zoomed in (log axis in log space)
+    px, py = ax.transData.inverted().transform((x0, y0))
+    assert abs(px - 10) / 10 < 1e-6 and abs(py - 50) < 1e-6                        # point under the cursor stays
+    scroll(-20)                                                                    # zooming out stops at the original view
+    assert np.allclose(ax.get_xlim(), (0.5, 300)) and np.allclose(ax.get_ylim(), (0, 100))
+    scroll(200)
+    assert (ax.get_ylim()[1] - ax.get_ylim()[0]) >= 100 / 60 - 1e-9                # zoom in is limited
+    c._press(MouseEvent("button_press_event", c, x0, y0, button=1, dblclick=True))  # double-click: whole plot again
+    assert np.allclose(ax.get_xlim(), (0.5, 300))
+    scroll(2); c._press(MouseEvent("button_press_event", c, x0, y0, button=1))       # pan while zoomed
+    c._move(MouseEvent("motion_notify_event", c, x0 + 20, y0 + 10)); c._release(None)
+    assert not np.allclose(ax.get_ylim(), (0, 100))
+
+
+def test_twin_drifts_with_gap_and_figure_case(win):
+    import pytest
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.geometry import level_specs
+    from ringblast.models import DesignParams, StopeGeometry
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    s = StopeGeometry(width=30, height=106, n_sublevels=2, drift_width=5, drift_height=5, drifts_per_sublevel=2,
+                      twin_position="gap", twin_gap_m=15, drift_vertical="top", drift_top_distance_m=20,
+                      undercut_height_m=23, hopper_bottom_width_m=7.5)
+    sp = level_specs(s, 3.0)
+    assert [round(x.centre[0], 2) for x in sp[:2]] == [-10.0, 10.0]               # 15 m between the two 5 m drifts
+    assert abs(sp[0].drift_rect[2] - sp[1].drift_rect[0] + 15) < 1e-9              # clear gap = 15 m
+    assert round(sp[0].top_y, 2) == 86.0 and round(sp[2].top_y, 2) == 86.0 - 41.5  # roofs 20 m below each block top
+    assert run_design(rock, ex, s, DesignParams()).n_holes > 0
+    s.twin_gap_m = 25
+    s.validate()                                                                   # axes on the walls: still allowed
+    s.twin_gap_m = 26
+    with pytest.raises(ValueError, match="too large"):
+        s.validate()
+    s.twin_gap_m = -1
+    with pytest.raises(ValueError, match="negative"):
+        s.validate()
+    win.ndrifts.setCurrentText("2")
+    win.twin.setCurrentIndex(win.twin.findData("gap"))
+    assert win.w["gap"].isEnabled() and not win.w["wd"].isEnabled()
+    win.twin.setCurrentIndex(win.twin.findData("sides"))
+    assert not win.w["gap"].isEnabled() and win.w["wd"].isEnabled()
+    assert win.get_inputs()["gap"] == 5.0 and win.get_inputs()["twin_position"] == "sides"
+
+
+def test_block_gaps_grey_regions_and_geometry_always_visible(win):
+    import numpy as np
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.geometry import level_specs, uncharged_regions
+    from ringblast.models import DesignParams, StopeGeometry
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    base = dict(width=30, height=106, n_sublevels=2, drift_width=5, drift_height=5, drifts_per_sublevel=2,
+                twin_position="sides", drift_vertical="top", drift_top_distance_m=15)
+    s0 = StopeGeometry(**base, sublevel_gap_m=2.0, twin_block_gap_m=0.0)
+    s1 = StopeGeometry(**base, sublevel_gap_m=4.0, twin_block_gap_m=3.0)
+    a, b = level_specs(s0, 4.2), level_specs(s1, 4.2)
+    assert a[0].bl[1] - (a[2].tl[1]) == 2.0 and b[0].bl[1] - b[2].tl[1] == 4.0      # vertical gap between the blocks
+    assert a[0].tr[0] == 0.0 and b[0].tr[0] == -1.5 and b[1].tl[0] == 1.5          # left / right blocks 3 m apart
+    assert len(uncharged_regions(s0, 4.2)) == 2 and len(uncharged_regions(s1, 4.2)) == 4
+    area = lambda p: abs(sum(p[i][0] * p[(i + 1) % 4][1] - p[(i + 1) % 4][0] * p[i][1] for i in range(4))) / 2
+    assert sorted(round(area(q), 3) for q in uncharged_regions(s1, 4.2))[-1] == 30 * 4.0     # grey strip between blocks
+    r0, r1 = run_design(rock, ex, s0, DesignParams()), run_design(rock, ex, s1, DesignParams())
+    assert r1.n_holes > 0
+    from ringblast.export import stope_outline                                      # the total volume stays that of the stope
+    out = stope_outline(s1)
+    stope_area = abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(out, out[1:] + out[:1]))) / 2
+    voids = 5 * 5 * 5                                                               # four sublevel drifts + base drift
+    for r_ in (r0, r1):
+        assert abs(r_.volume_m3 - (stope_area - voids) * r_.burden_m) / ((stope_area - voids) * r_.burden_m) < 0.01
+    assert abs(r1.volume_m3 - r0.volume_m3) / r0.volume_m3 < 0.03                   # gaps do not change the volume
+    assert r1.powder_factor < r0.powder_factor * 1.001 or r1.charge_kg < r0.charge_kg
+    assert StopeGeometry(**base).sublevel_gap_m is None                            # legacy: half burden
+    import pytest
+    with pytest.raises(ValueError, match="cannot be negative"):
+        StopeGeometry(**base, sublevel_gap_m=-1).validate()
+    # GUI: the geometry is visible next to the blast parameters; Run design overlays the charges
+    win.apply_inputs({**win.get_inputs(), "width": 30.0, "height": 106.0, "drifts": 2, "vg": 3.0, "hg": 2.0, "dtop": 15.0, "n_sub": 2})
+    assert win.plots.count() == 1 and win.plots.tabText(0) == "Layout" and win.plots.widget(0) is win.design_canvas
+    assert win.w["hg"].isEnabled() and "hopper" not in " ".join(win.w).lower() and "uc" not in win.w and "hb" not in win.w
+    win.run()
+    assert [win.plots.tabText(i) for i in range(win.plots.count())] == ["Pattern", "Fragmentation"]
+    ax = win.plots.widget(0).figure.axes[0]
+    assert len(ax.patches) >= 4 and any(np.allclose(p.get_facecolor()[:3], (0.7, 0.7, 0.7), atol=0.02) for p in ax.patches)  # grey gaps
+    win.update_layout()
+    assert win.plots.count() == 1 and win.plots.tabText(0) == "Layout"
+
+
+def test_wide_x_range_and_sublevel_groups(win):
+    import numpy as np
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.export import plot_fragmentation, plot_pattern, plot_stope_layout
+    from ringblast.geometry import level_specs
+    from ringblast.models import DesignParams, StopeGeometry
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    s = StopeGeometry(width=30, height=106, n_sublevels=2, drift_width=5, drift_height=5, drifts_per_sublevel=2,
+                      twin_position="sides", drift_wall_distance_m=-2.5, drift_vertical="top", drift_top_distance_m=15)
+    xmax = max(sp.drift_rect[2] for sp in level_specs(s, 0.0))
+    assert xmax == 17.5                                                            # drift sticks out of the stope outline
+    lay = plot_stope_layout(s)
+    lo, hi = lay.axes[0].get_xlim()
+    assert hi > xmax + 5 and lo < -xmax - 5                                        # nothing is hidden, room for the labels
+    p = DesignParams(); res = run_design(rock, ex, s, p)
+    fig = plot_pattern(res, s, (1, 2), params=p)                                   # both drifts of sublevel 1
+    lo, hi = fig.axes[0].get_xlim()
+    assert hi > xmax + 5 and lo < -xmax - 5
+    ys = fig.axes[0].get_ylim()
+    assert ys[1] - ys[0] < 106 / 2 + 15                                             # zoomed on the sublevel
+    assert len(plot_fragmentation(res, (1, 2)).axes[0].get_lines()) == 3          # left, right, together
+    win.apply_inputs({**win.get_inputs(), "drifts": 2, "n_sub": 2})
+    win.run()
+    names = [win.level.itemText(i) for i in range(win.level.count())]
+    assert names[:3] == ["All levels", "Sublevel 1 (left + right)", "Sublevel 2 (left + right)"] and "Sublevel 1 left" in names
+    win.level.setCurrentIndex(1)                                                    # draws without error
+    assert win.plots.count() == 2
+    assert win.layout_canvas.minimumHeight() <= 300 and win.design_canvas.minimumHeight() <= 300
+
+
+def test_level_labels_centred_and_inside_the_axes():
+    from ringblast import db
+    from ringblast.design import run_design
+    from ringblast.export import plot_pattern, plot_stope_layout
+    from ringblast.models import DesignParams, StopeGeometry
+    rock, ex = list(db.load_rocks().values())[0], list(db.load_explosives().values())[0]
+    for s in (StopeGeometry(width=30, height=106, n_sublevels=2, drift_width=5, drift_height=5, drifts_per_sublevel=2,
+                            twin_position="sides", drift_wall_distance_m=-2.5, drift_vertical="top", drift_top_distance_m=15),
+              StopeGeometry(width=25, height=80, n_sublevels=2, drift_width=5, drift_height=5)):
+        res = run_design(rock, ex, s, DesignParams())
+        for fig in (plot_stope_layout(s), plot_pattern(res, s), plot_pattern(res, s, (1, 2) if s.drifts_per_sublevel == 2 else 1)):
+            fig.canvas.draw()
+            ax = fig.axes[0]
+            box = ax.get_window_extent()
+            names = [t for t in ax.texts if t.get_text().startswith("Sublevel") or t.get_text().startswith("Base")]
+            assert names
+            for t in names:
+                bb = t.get_window_extent()
+                assert bb.x0 > box.x0 + 3 and bb.x1 < box.x1 - 3                  # inside the axes, not on the frame
+                assert t.get_va() == "center"                                       # centred on the drift
+                _, y = t.get_position()
+                lv = [sp for sp in level_specs_for(s) if sp.name.replace(" ", "") in t.get_text().replace("\n", "").replace(" ", "")]
+                if lv:
+                    assert abs(y - (lv[0].drift_rect[1] + lv[0].drift_rect[3]) / 2) < 1e-9
+
+
+def level_specs_for(stope):
+    from ringblast.geometry import level_specs
+    return level_specs(stope, 0.0)

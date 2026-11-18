@@ -73,6 +73,10 @@ def solve_segment(c: Point, p0: Point, p1: Point, s_max_half: float,
     spacing 2s, using the smallest number of intervals with 2s <= 2*s_max_half."""
     length = math.dist(p0, p1)
     d = ((p1[0] - p0[0]) / length, (p1[1] - p0[1]) / length)
+    if abs(_cross((c[0] - p0[0], c[1] - p0[1]), d)) < 1e-9:
+        # the drift axis lies on this edge (drift moved onto the wall of the stope): every ray to the
+        # edge has the same direction, so the edge carries no toes of its own except the end corner p1
+        return [p1], float("nan")
 
     def residual(s: float, n: int) -> float:
         pos = _march(c, p0, p1, s, n)
@@ -186,7 +190,8 @@ def level_specs(stope: StopeGeometry, burden: float) -> list[LevelSpec]:
     count = 0
     for k in range(stope.n_sublevels):
         top = big_h - k * hsub
-        y_bot = top - hsub + burden / 2
+        vgap = stope.sublevel_gap_m if stope.sublevel_gap_m is not None else burden / 2
+        y_bot = top - hsub + vgap                 # uncharged strip (vgap) between this block and the one below
         roof = stope.drift_roof_y(k)
         if roof - h < y_bot - 1e-9:
             raise ValueError(f"Sublevel {k + 1}: the drift reaches below the blast block (bottom of the block "
@@ -195,7 +200,8 @@ def level_specs(stope: StopeGeometry, burden: float) -> list[LevelSpec]:
         xs = stope.drift_xs(k)
         twin = len(xs) == 2
         for j, cx in enumerate(xs):
-            xl, xr = ((-l2, 0.0) if j == 0 else (0.0, l2)) if twin else (-l2, l2)
+            hg = stope.twin_block_gap_m / 2           # uncharged strip along the centre line between the two blocks
+            xl, xr = ((-l2, -hg) if j == 0 else (hg, l2)) if twin else (-l2, l2)
             yl, yr = (arch_y(l2, top, rise, xl), arch_y(l2, top, rise, xr)) if rise > 0 else (top, top)
             has_top = rise > 0 or (top - roof) >= MIN_HOLE_LENGTH
             side = ("left", "right")[j] if twin else ""
@@ -214,6 +220,50 @@ def level_specs(stope: StopeGeometry, burden: float) -> list[LevelSpec]:
                                (-l2, u), (-a, floor), (a, floor), (l2, u),
                                stope.drift_width, h))
     return specs
+
+
+def uncharged_regions(stope: StopeGeometry, burden: float) -> list[list[Point]]:
+    """Rectangles of the stope that no block charges: the horizontal strips between consecutive sublevel
+    blocks (and between the lowest sublevel and the base block) and, for two drifts per sublevel, the
+    vertical strip between the left and the right block.  Used to draw them grey."""
+    l2, big_h, hsub = stope.width / 2, stope.height, stope.sublevel_height
+    vgap = stope.sublevel_gap_m if stope.sublevel_gap_m is not None else burden / 2
+    hg = stope.twin_block_gap_m / 2
+    out: list[list[Point]] = []
+    for k in range(stope.n_sublevels):
+        top = big_h - k * hsub
+        y_bot = top - hsub + vgap
+        if vgap > 1e-9:
+            y_next = top - hsub
+            out.append([(-l2, y_next), (l2, y_next), (l2, y_bot), (-l2, y_bot)])
+        if stope.drifts_per_sublevel == 2 and hg > 1e-9:
+            out.append([(-hg, y_bot), (hg, y_bot), (hg, top), (-hg, top)])
+    return out
+
+
+def gap_area_shares(stope: StopeGeometry, burden: float, specs: list[LevelSpec]) -> list[float]:
+    """Plan area (m2) of the uncharged strips that belongs to each level, so that the volumes of the levels
+    add up to the whole stope: every horizontal strip is shared equally by the block above and the block
+    below it (a twin pair shares its half equally between left and right), the vertical strip between the
+    left and right block is shared equally by the two."""
+    l2, big_h, hsub = stope.width / 2, stope.height, stope.sublevel_height
+    vgap = stope.sublevel_gap_m if stope.sublevel_gap_m is not None else burden / 2
+    hg = stope.twin_block_gap_m
+    share = [0.0] * len(specs)
+    for k in range(stope.n_sublevels):
+        top = big_h - k * hsub
+        y_bot = top - hsub + vgap
+        upper = [i for i, sp in enumerate(specs) if sp.kind == "sublevel" and sp.sublevel == k + 1]
+        lower = [i for i, sp in enumerate(specs) if sp.kind == "sublevel" and sp.sublevel == k + 2] \
+            or [i for i, sp in enumerate(specs) if sp.kind == "base"]
+        strip = 2 * l2 * vgap
+        for grp in (upper, lower):
+            for i in grp:
+                share[i] += strip / 2 / len(grp) if grp else 0.0
+        if len(upper) == 2 and hg > 0:
+            for i in upper:
+                share[i] += hg * (top - y_bot) / 2
+    return share
 
 
 def _toe_hole_length(c: Point, toe: Point, hw: float, hh: float) -> float:

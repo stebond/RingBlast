@@ -90,13 +90,21 @@ class StopeGeometry:
     drift_height: float = 5.0     # h (m)
     wall_angle_deg: float = 55.0  # hopper wall angle of the undercut
     drift_position: str = "center"             # center | left | right
-    drift_wall_distance_m: float = 0.0         # wall-to-drift distance for side drifts (0 = flush with the wall)
+    drift_wall_distance_m: float = 0.0         # wall-to-drift distance for side drifts (0 = flush with the wall);
+                                               # two drifts at the sides: may be negative, down to -drift_width/2
+                                               # (drift axis on the wall of the stope)
     drift_positions: Optional[list] = None     # per-sublevel override (n_sublevels entries, top to bottom)
     base_drift: bool = True
     undercut_height_m: Optional[float] = None  # None -> ceil(L/2 tan(angle) + h/2) (legacy macro)
     hopper_bottom_width_m: Optional[float] = None  # None -> drift_width
+    sublevel_gap_m: Optional[float] = None     # vertical clear distance between the charged blocks of consecutive
+                                               # sublevels (uncharged, drawn grey); None -> half the burden (legacy)
+    twin_block_gap_m: float = 0.0              # two drifts per sublevel: clear distance between the left and the right
+                                               # block (uncharged strip along the centre line, drawn grey)
     drifts_per_sublevel: int = 1               # 1, or 2 symmetric drifts (each fires one half of the block)
-    twin_position: str = "sides"               # two drifts: "sides" (at the walls) or "halves" (centre of each half)
+    twin_position: str = "sides"               # two drifts: "sides" (at the walls), "halves" (centre of each half)
+                                               # or "gap" (symmetric, with `twin_gap_m` between the two drifts)
+    twin_gap_m: float = 5.0                    # "gap": clear distance between the two drift rectangles
     drift_vertical: str = "top"                # sublevel drifts: "top" (roof at the top of the block, minus
                                                # drift_top_distance_m) or "center" (centred in the sublevel)
     drift_top_distance_m: float = 0.0          # "top": distance between the top of the block and the drift roof
@@ -117,11 +125,21 @@ class StopeGeometry:
     def n_levels(self) -> int:
         return self.n_sublevels * self.drifts_per_sublevel + (1 if self.base_drift else 0)
 
+    @property
+    def min_wall_distance(self) -> float:
+        """Smallest allowed wall distance: 0, or -drift_width/2 for two drifts at the sides (the drift
+        axis can be moved onto the wall of the stope)."""
+        return -self.drift_width / 2 if (self.drifts_per_sublevel == 2 and self.twin_position == "sides") else 0.0
+
     def drift_xs(self, level: int) -> list[float]:
         """Abscissas of the drift centres of sublevel `level` (0-based), left to right."""
         if self.drifts_per_sublevel == 2:
-            x = self.width / 4 if self.twin_position == "halves" else \
-                self.width / 2 - self.drift_wall_distance_m - self.drift_width / 2
+            if self.twin_position == "gap":
+                x = self.twin_gap_m / 2 + self.drift_width / 2
+            elif self.twin_position == "halves":
+                x = self.width / 4
+            else:
+                x = self.width / 2 - self.drift_wall_distance_m - self.drift_width / 2
             return [-x, x]
         return [self.drift_x(level)]
 
@@ -159,6 +177,10 @@ class StopeGeometry:
             raise ValueError("drift wider than the stope")
         if self.sublevel_height <= self.drift_height:
             raise ValueError("sublevel height must exceed drift height")
+        if self.sublevel_gap_m is not None and self.sublevel_gap_m < 0:
+            raise ValueError("the vertical gap between the sublevel blocks cannot be negative")
+        if self.twin_block_gap_m < 0 or (self.drifts_per_sublevel == 2 and self.twin_block_gap_m >= self.width):
+            raise ValueError("the gap between the left and right blocks must be between 0 and the stope width")
         if self.drift_positions and len(self.drift_positions) != self.n_sublevels:
             raise ValueError(f"drift_positions needs {self.n_sublevels} entries (one per sublevel)")
         for k in range(self.n_sublevels):
@@ -166,11 +188,17 @@ class StopeGeometry:
                 raise ValueError("drift position must be center, left or right")
         if self.drifts_per_sublevel not in (1, 2):
             raise ValueError("drifts per sublevel must be 1 or 2")
-        if self.twin_position not in ("sides", "halves"):
-            raise ValueError("position of two drifts must be sides or halves")
+        if self.twin_position not in ("sides", "halves", "gap"):
+            raise ValueError("position of two drifts must be sides, halves or gap")
+        if self.drifts_per_sublevel == 2 and self.twin_position == "gap":
+            if self.twin_gap_m < 0:
+                raise ValueError("the gap between the two drifts cannot be negative")
+            if self.twin_gap_m / 2 + self.drift_width / 2 > self.width / 2 + 1e-9:
+                raise ValueError(f"the gap is too large: the drift axes would be beyond the walls "
+                                 f"(maximum gap {self.width - self.drift_width:g} m)")
         if self.drifts_per_sublevel == 2:
             xs = self.drift_xs(0)
-            if xs[1] - self.drift_width / 2 < -1e-9 or (self.twin_position == "halves"
+            if (self.twin_position != "gap" and xs[1] - self.drift_width / 2 < -1e-9) or (self.twin_position == "halves"
                                                          and self.drift_width > self.width / 2 - 1e-9):
                 raise ValueError("the two drifts do not fit side by side in the stope width")
         if self.drift_vertical not in ("top", "center"):
@@ -181,7 +209,10 @@ class StopeGeometry:
             raise ValueError("drift does not fit in the sublevel: reduce its distance from the top")
         if self.roof_arch_rise_m > self.width / 2:
             raise ValueError("roof arch rise cannot exceed half the stope width (a semicircle)")
-        if self.drift_wall_distance_m < 0:
+        if self.min_wall_distance < 0 and self.drift_wall_distance_m < self.min_wall_distance - 1e-9:
+            raise ValueError(f"wall distance cannot be below {self.min_wall_distance:g} m: "
+                             "the drift axis cannot go beyond the wall of the stope")
+        if self.min_wall_distance == 0 and self.drift_wall_distance_m < 0:
             raise ValueError("wall distance cannot be negative")
         if any(self.position(k) != "center" for k in range(self.n_sublevels)) and \
                 self.drift_width + 2 * self.drift_wall_distance_m > self.width:

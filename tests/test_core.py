@@ -264,5 +264,7 @@ def test_totals_are_sum_of_levels_and_region_areas():
         base = res.levels[2]
         trap = (25 + 5) / 2 * (21 - 5)                                   # hopper block, drift below it
         assert sum(z.area_m2 for z in base.zones) == pytest.approx(trap, rel=0.01)
-        assert base.volume_m3 == pytest.approx(trap * res.burden_m, rel=0.01)
+        from ringblast.geometry import gap_area_shares, level_specs
+        share = gap_area_shares(s, res.burden_m, level_specs(s, res.burden_m))[2]        # half of the strip above the base
+        assert base.volume_m3 == pytest.approx((trap + share) * res.burden_m, rel=0.01)
         assert all(l.n_holes > 0 for l in res.levels)

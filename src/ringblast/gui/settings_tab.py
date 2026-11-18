@@ -25,6 +25,7 @@ GROUPS = [
                        ("block_base", "Base block")]),
     ("Blast pattern", [("charged_color", "Charged part of the holes"), ("stemming_color", "Stemming / uncharged"),
                        ("booster_color", "Booster (bottom charge)"),
+                       ("gap_color", "Uncharged gaps between blocks"),
                        ("zone_color", "Fragmentation zone boundaries")]),
     ("Curves", [("palette", "Colour palette"), ("predicted_color", "Predicted (Kuz-Ram) curve"),
                 ("measured_color", "Measured (photo) curve")]),
@@ -114,7 +115,7 @@ class SettingsTab(W.QWidget):
              "drift_color": "Colour of the drift outline.", "drift_fill": "Fill of the drifts.",
              "block_sublevel_1": "Fill of the odd sublevel blocks.", "block_sublevel_2": "Fill of the even sublevel blocks.",
              "block_base": "Fill of the base (hopper) block.",
-             "charged_color": "Colour of the charged part of each hole.", "stemming_color": "Colour of the stemming / uncharged part.", "booster_color": "Colour of the booster (bottom charge), drawn thicker than the column.",
+             "charged_color": "Colour of the charged part of each hole.", "stemming_color": "Colour of the stemming / uncharged part.", "booster_color": "Colour of the booster (bottom charge), drawn thicker than the column.", "gap_color": "Colour of the parts of the stope that are not charged (the gaps between the blocks).",
              "zone_color": "Colour of the fragmentation zone boundaries.", "palette": "Colours used for the curves of the different levels.",
              "predicted_color": "Colour of the Kuz-Ram prediction in the photo plots.",
              "measured_color": "Colour of the distribution measured on the photos."}

@@ -45,6 +45,7 @@ class PlotStyle:
     charged_color: str = "#d62728"
     stemming_color: str = "#999999"
     booster_color: str = "#1f77b4"      # bottom charge (booster), drawn thicker
+    gap_color: str = "#b3b3b3"          # parts of the stope that are not charged (gaps between the blocks)
     zone_color: str = "#2ca02c"
     # curves
     palette: str = "tab10"
