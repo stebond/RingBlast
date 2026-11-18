@@ -23,6 +23,10 @@ jobs:
             tag: linux
             exe: dist/RingBlast/RingBlast
             archive: dist/RingBlast-portable-*.tar.gz
+          - os: macos-14          # Apple Silicon (M1/M2/M3...)
+            tag: macos
+            exe: dist/RingBlast.app/Contents/MacOS/RingBlast
+            archive: dist/RingBlast-portable-*.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

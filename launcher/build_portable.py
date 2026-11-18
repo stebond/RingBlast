@@ -3,7 +3,8 @@
     python launcher/build_portable.py
 
 Result: dist/RingBlast/ (RingBlast.exe on Windows, RingBlast on Linux) and
-dist/RingBlast-portable-<version>-<os>.zip (Windows, macOS) or .tar.gz (Linux, keeps the executable bit).
+dist/RingBlast-portable-<version>-<os>.zip (Windows) or .tar.gz (Linux, macOS; keeps the executable bit).
+On macOS the program is RingBlast.app (unsigned: first start with right-click > Open).
 Copy the folder (or unzip the zip) anywhere, e.g. on a USB stick: the settings, the user database rows and
 the photos of the opened projects are stored in RingBlast_data next to the program.
 PyInstaller does not cross-compile: run this on each operating system (see
@@ -60,7 +61,19 @@ def main() -> int:
         "RingBlast_data next to the program, so the whole folder can be moved or copied (USB stick).\n"
         "Projects are saved by default in 'projects', exported results in 'output'.\n"
         "Help > User manual (F1) opens the manual. Licence: MIT.\n", encoding="utf-8")
-    if sys.platform.startswith("linux"):
+    if sys.platform == "darwin":
+        app = ROOT / "dist" / f"{NAME}.app"
+        (ROOT / "dist" / "README.txt").write_text(
+            "RingBlast for macOS\n\nMove RingBlast.app to Applications (or anywhere) and start it.\n"
+            "The app is not signed: the first time, right-click RingBlast.app > Open > Open\n"
+            "(or run: xattr -cr RingBlast.app).\n"
+            "Settings and your own rocks/explosives are stored in ~/Library/Application Support/RingBlast.\n"
+            "Help > User manual (F1) opens the manual. Licence: MIT.\n", encoding="utf-8")
+        zpath = ROOT / "dist" / f"{NAME}-portable-{__version__}-{TAG}.tar.gz"
+        with tarfile.open(zpath, "w:gz") as t:
+            t.add(app, arcname=app.name)
+            t.add(ROOT / "dist" / "README.txt", arcname="README.txt")
+    elif sys.platform.startswith("linux"):
         zpath = ROOT / "dist" / f"{NAME}-portable-{__version__}-{TAG}.tar.gz"
         with tarfile.open(zpath, "w:gz") as t:
             t.add(out, arcname=NAME)

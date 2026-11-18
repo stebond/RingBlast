@@ -39,8 +39,14 @@ than the tag, the program will keep offering an update to itself.
 ## Notes
 - Users who skipped a version are still told about a newer one; the manual check ignores the skip.
 - The automatic check can be disabled in the Settings tab, or with the variable `RINGBLAST_NO_UPDATE_CHECK=1`.
-- The workflow needs `permissions: contents: write` (already set in `.github/workflows/build-windows.yml`).
+- The workflow needs `permissions: contents: write` (already set in `.github/workflows/build-portable.yml`).
 - Never move or re-use a published tag for different code: delete the release and the tag first, or use a new number.
 - To build the same zip by hand on Windows: `launcher\\build_exe.bat`.
 - Not done yet (possible future work): code signing of the exe (removes the SmartScreen warning) and an
   online update of the database tables (CSV) without a new program release.
+
+## Platforms
+
+The workflow builds three portable packages on every `vX.Y.Z` tag and attaches them to the release:
+`RingBlast-portable-<version>-windows.zip`, `-linux.tar.gz` and `-macos.tar.gz` (Apple Silicon).
+The macOS app is not signed: on first start use right-click > Open (or `xattr -cr RingBlast.app`).

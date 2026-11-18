@@ -40,6 +40,9 @@ def user_dir() -> Path:
     env = os.environ.get("RINGBLAST_HOME")
     if env:
         return Path(env)
+    if frozen() and sys.platform == "darwin":
+        # the .app bundle is read-only once installed/quarantined: use the standard macOS folder
+        return Path.home() / "Library" / "Application Support" / "RingBlast"
     if portable():
         return app_dir() / "RingBlast_data"
     return Path.home() / ".ringblast"
